@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>3D 자세 검수</title>
+<style>
+  body { margin: 8px; font: 12px 'Malgun Gothic', sans-serif; background: #fff; color: #222; }
+  #grid { display: grid; grid-template-columns: repeat(4, 300px); gap: 6px; }
+  figure { margin: 0; border: 1px solid #ddd; }
+  figure img { width: 300px; height: 230px; display: block; }
+  figcaption { padding: 2px 4px; }
+  #stage { position: absolute; left: -2000px; width: 600px; height: 460px; }
+</style>
+<div id="stage"></div>
+<div id="grid"></div>
+<script src="../vendor/three.min.js"></script>
+<script type="module">
+  // 사용법: review3d.html?list=deadhang:ok:0.5:62,bike:ng:0.2:90
+  import { createViewer } from '../js/body3d/viewer.js';
+  const v = createViewer(document.getElementById('stage'), { capture: true, markers: true });
+  const list = (new URLSearchParams(location.search).get('list') || '').split(',').filter(Boolean);
+  const grid = document.getElementById('grid');
+  for (const item of list) {
+    const [id, mode = 'ok', t = '0.5', az] = item.split(':');
+    v.show(id, mode);
+    if (az) v.setView(+az);
+    v.renderAt(+t);
+    const vals = v.callouts.map((c, i) => `${i + 1}:${document.querySelectorAll('#stage .mk3 span')[i]?.textContent || ''}`).join(' ');
+    const f = document.createElement('figure');
+    f.innerHTML = `<img src="${v.canvas.toDataURL()}"><figcaption>${id} ${mode} t=${t} · ${v.label} · ${vals}</figcaption>`;
+    grid.appendChild(f);
+  }
+  document.title = 'done';
+</script>
