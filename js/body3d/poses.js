@@ -22,8 +22,8 @@ const LOOSE = { ...HANG, el: 0.05 };
 const SHRUG = { ...HANG, el: 0.095, nk: 20, sp: 7 };
 const TOP = { sf: 10, sa: 18, ef: 150, el: -0.02, hf: 20, kf: 40, pf: 20, nk: -6 };
 
-const PUSH_UP = { rx: 66, pf: -12, fla: 45 }, PUSH_DN = { rx: 83, pf: -4, fla: 45 };
-const PUSH_NG_UP = { rx: 62, hf: -14, sp: -9, nk: 38, pf: -12, fla: 86 }, PUSH_NG_DN = { rx: 78, hf: -16, sp: -10, nk: 44, pf: -4, fla: 86 };
+const PUSH_UP = { rx: 73.5, pf: -12, fla: 45 }, PUSH_DN = { rx: 83, pf: -4, fla: 45 };
+const PUSH_NG_UP = { rx: 68, hf: -14, sp: -9, nk: 38, pf: -12, fla: 86 }, PUSH_NG_DN = { rx: 78, hf: -16, sp: -10, nk: 44, pf: -4, fla: 86 };
 const INC_UP = { rx: 48, pf: -22, fla: 40 }, INC_DN = { rx: 64, pf: -14, fla: 40 };
 const INC_NG_UP = { rx: 44, hf: -14, sp: -9, nk: 36, pf: -22, fla: 86 }, INC_NG_DN = { rx: 60, hf: -16, sp: -10, nk: 42, pf: -14, fla: 86 };
 
@@ -31,7 +31,7 @@ const STAND = { ha: 10, hr: 14, flat: 1, sf: 88, sa: 8, ef: 4 };
 const CHAIR_DN = { rx: 35, hf: 125, kf: 96, ha: 12, hr: 14, flat: 1, sf: 122, sa: 8, ef: 4, nk: -12 };
 const SQ_DN = { rx: 38, hf: 128, kf: 100, ha: 12, hr: 14, flat: 1, sf: 125, sa: 8, ef: 4, nk: -12 };
 const SQ_NG_ST = { ha: 6, hr: 4, flat: 1, sf: 88, sa: 8, ef: 4 };
-const SQ_NG_DN = { rx: 18, hf: 108, kf: 132, ha: 4, hr: 2, kv: 13, flat: 1, pf: 30, sf: 100, sa: 8, ef: 4, sp: 12 };
+const SQ_NG_DN = { rx: 18, hf: 108, kf: 132, ha: 4, hr: 2, kv: 13, flat: 1, pf: 30, sf: 100, sa: 8, ef: 4, sp: 12, oz: 0.07 };
 
 const DIP_STAND = { el: 0.03, sf: -24, sa: 10, ef: 74, wf: -12, flat: 1 };
 const DIP_UP = { el: -0.025, sp: 5, rx: 5, sf: -2, sa: 9, ef: 7, wf: -8, hf: 18, kf: 78, pf: 22 };
@@ -134,7 +134,7 @@ export const POSES = {
     ng: pushNg(PUSH_NG_UP, PUSH_NG_DN),
   },
   chairsquat: {
-    name: '의자 스쿼트', eq: ['chair'], tg: [0, 0.72, -0.12], dist: 3.6, anc: BALLS, at: [0, 0, 0.24], setup: 'chairUnderHip',
+    name: '의자 스쿼트', eq: ['chair'], tg: [0, 0.72, -0.12], dist: 3.6, anc: BALLS, plant: true, at: [0, 0, 0.24], setup: 'chairUnderHip',
     ok: {
       dur: 5200, ref: 0.5,
       fr: [[0, STAND, '① 발은 어깨너비, 발끝은 살짝 바깥'], [0.1, STAND, '② 엉덩이를 뒤로 빼며 천천히 앉기'], [0.45, CHAIR_DN, '③ 의자에 살짝 닿으면 멈춤'], [0.58, CHAIR_DN, '④ 발뒤꿈치로 바닥을 밀며 일어나기'], [1, STAND]],
@@ -143,7 +143,7 @@ export const POSES = {
     ng: squatNg,
   },
   squat: {
-    name: '맨몸 스쿼트', eq: [], tg: [0, 0.72, -0.05], dist: 3.6, anc: BALLS, at: [0, 0, 0.24],
+    name: '맨몸 스쿼트', eq: [], tg: [0, 0.72, -0.05], dist: 3.6, anc: BALLS, plant: true, at: [0, 0, 0.24],
     ok: {
       dur: 3800, fr: [[0, STAND, '① 발은 어깨너비, 발끝은 살짝 바깥'], [0.1, STAND, '② 엉덩이를 뒤로 빼며 앉기'], [0.45, SQ_DN, '③ 허벅지가 바닥과 평행'], [0.55, SQ_DN, '④ 뒤꿈치로 밀며 일어나기'], [1, STAND]],
       c: [['hip', '엉덩이를 뒤로 빼며 앉기', '허벅지가 바닥과 평행까지', null, HP], ['kn', '무릎은 발끝 방향', '발끝을 크게 넘지 않기', KNEE, KN], ['heel1', '뒤꿈치는 바닥에', '뒤꿈치로 밀며 일어나기', null, AN], ['c7', '가슴 펴고 등은 곧게', '허리를 말지 않기']],
@@ -151,7 +151,7 @@ export const POSES = {
     ng: squatNg,
   },
   slowsquat: {
-    name: '3초 내려가는 스쿼트', eq: [], tg: [0, 0.72, -0.05], dist: 3.6, anc: BALLS, at: [0, 0, 0.24],
+    name: '3초 내려가는 스쿼트', eq: [], tg: [0, 0.72, -0.05], dist: 3.6, anc: BALLS, plant: true, at: [0, 0, 0.24],
     ok: {
       dur: 5600, fr: [[0, STAND, '① 발은 어깨너비'], [0.08, STAND, '② 하나, 둘, 셋 — 3초 동안 내려가기'], [0.62, SQ_DN, '③ 바닥에서 잠깐 멈춤'], [0.7, SQ_DN, '④ 1초에 일어나기'], [0.9, STAND], [1, STAND]],
       c: [['hip', '천천히 일정한 속도로', '중간에 멈칫하지 않기', null, HP], ['kn', '무릎은 발끝 방향', '안쪽으로 모이지 않게', KNEE, KN], ['heel1', '뒤꿈치는 바닥에', '끝까지 붙인 채', null, AN]],

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { lineFor, secText, announceNext, QUIET_SEC } from '../js/coach.js';
+import { lineFor, secText, announceNext, QUIET_SEC, speakable, cuePlan, postureLine } from '../js/coach.js';
 import { strengthDay, bikeDay } from '../js/timeline.js';
 import { createTimer } from '../js/timer.js';
 import { initLevels } from '../js/levels.js';
@@ -81,4 +81,44 @@ test('자전거 목표 구간: 5분마다 심박 확인', () => {
 
 test('세션 끝 인사', () => {
   assert.equal(lineFor({ type: 'sessionEnd' }), '오늘 운동 끝났습니다. 참 잘하셨어요');
+});
+
+test('자세 설명을 읽기 좋게 바꾼다', () => {
+  assert.equal(speakable('25~35°가 적당'), '25에서 35도가 적당');
+  assert.equal(speakable('머리~발목 일직선'), '머리부터 발목까지 일직선');
+  assert.equal(speakable('허리(요추)에 부담'), '허리에 부담');
+  assert.equal(speakable('뛰어내리기 금지 — 발목 보호'), '뛰어내리기 금지, 발목 보호');
+  assert.equal(postureLine('deadhang', 0), '어깨를 귀에서 멀리. 목이 길게 보이게');
+});
+
+test('휴식 중 자세 포인트: 10초·22초에, 세트마다 다른 포인트를 읽는다', () => {
+  const rests = S.filter((x) => x.kind === 'rest' && !x.prep && x.next.exId === 'hang');
+  const set2 = rests.find((x) => x.next.setNo === 2);
+  const plan = cuePlan(set2);
+  assert.deepEqual(plan.map((c) => [c.at, c.i]), [[10, 2], [22, 3]]);
+  assert.match(lineFor({ type: 'second', step: set2, remaining: set2.seconds - 10 }), /^자세 포인트\. 배에 살짝 힘/);
+  assert.equal(lineFor({ type: 'second', step: set2, remaining: set2.seconds - 22 }), postureLine('deadhang', 3));
+  // 다음 운동 안내(15초 전)는 그대로
+  assert.equal(lineFor({ type: 'second', step: set2, remaining: 15 }), announceNext(set2.next));
+});
+
+test('준비 단계: 5초에 첫 자세 포인트 (같은 운동 이름을 두 번 말하지 않는다)', () => {
+  const prep = S.find((x) => x.prep);
+  assert.deepEqual(cuePlan(prep).map((c) => [c.at, c.i]), [[5, 0]]);
+  assert.match(lineFor({ type: 'second', step: prep, remaining: 15 }), /^자세 포인트\. 어깨를 귀에서 멀리/);
+});
+
+test('웜업·쿨다운: 3D 자세가 있으면 8초부터 12초 간격, 설명 개수만큼', () => {
+  const bikeWarm = S.find((x) => x.kind === 'warmup' && x.pose === 'bike');
+  assert.deepEqual(cuePlan(bikeWarm).map((c) => c.at), [8, 20, 32, 44]);
+  assert.deepEqual(cuePlan(S.find((x) => x.pose === 'armcircle')).map((c) => c.at), [8]);
+  assert.deepEqual(cuePlan(S.find((x) => x.kind === 'warmup' && !x.pose)), []);
+  assert.equal(cuePlan(bikeDay(1)[0]).length, 4); // 자전거 날 웜업 구간
+  assert.deepEqual(cuePlan(bikeDay(1)[1]), []); // 목표 구간엔 3D가 없다
+});
+
+test('자세 포인트는 끝나기 6초 전까지 다 말할 수 있는 시각에만', () => {
+  for (const steps of [S, bikeDay(5), strengthDay(initLevels().levels, 'light')]) {
+    for (const s of steps) for (const c of cuePlan(s)) assert.ok(c.at + 5 <= s.seconds - QUIET_SEC, `${s.kind} ${c.at}`);
+  }
 });

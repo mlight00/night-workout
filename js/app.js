@@ -2,7 +2,8 @@
 
 import { createTimer } from './timer.js';
 import { strengthDay, bikeDay, stretchDay, totalSeconds } from './timeline.js';
-import { lineFor } from './coach.js';
+import { lineFor, cuePlan } from './coach.js';
+import { speak, stopSpeech, unlockSpeech } from './speech.js';
 import { createBeeper, needsCountdown } from './beeps.js';
 import { createStore, exportJson, importJson } from './store.js';
 import { nextType, ymd } from './schedule.js';
@@ -43,30 +44,9 @@ const myKg = () => (data.weights.length ? data.weights.at(-1).kg : 90);
 const todayType = () => typeOverride || nextType(data.sessions);
 
 // ---- 음성 ----------------------------------------------------------------
-let voice = null;
-function pickVoice() {
-  const vs = window.speechSynthesis ? speechSynthesis.getVoices() : [];
-  voice = vs.find((v) => v.lang === 'ko-KR' && /google/i.test(v.name)) || vs.find((v) => v.lang && v.lang.startsWith('ko')) || null;
-}
-if (window.speechSynthesis) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
-function speak(text) {
-  if (!window.speechSynthesis || !text) return;
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'ko-KR';
-  if (voice) u.voice = voice;
-  u.rate = 1.08;
-  // 새 말이 이전 말을 끊는다 — 밀린 말은 버린다.
-  // 안드로이드 크롬은 cancel 직후 바로 speak하면 새 말을 삼키는 경우가 있어 아주 조금 띄운다.
-  if (speechSynthesis.speaking || speechSynthesis.pending) {
-    speechSynthesis.cancel();
-    setTimeout(() => speechSynthesis.speak(u), 80);
-  } else {
-    speechSynthesis.speak(u);
-  }
-}
 function unlockAudio() {
   beeper.unlock();
-  if (window.speechSynthesis) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); }
+  unlockSpeech();
 }
 
 // ---- 홈 ------------------------------------------------------------------
@@ -140,7 +120,7 @@ function loop() {
   const t = clock(), gap = t - S.last;
   S.last = t;
   const catching = gap > 3000 * speed; // 화면이 꺼졌다 켜지면 밀린 안내는 건너뛴다
-  if (catching && window.speechSynthesis) speechSynthesis.cancel();
+  if (catching) stopSpeech();
   handle(S.timer.tick(t), catching);
   if (!S || !S.active) return;
   const st = S.timer.state();
@@ -156,6 +136,7 @@ function handle(events, catching = false) {
   for (const e of events) {
     if (!catching || e === lastStart || e.type === 'sessionEnd') speak(lineFor(e));
     if (e.type === 'stepStart') onStep(e.step, e.index);
+    if (e.type === 'second' && !catching) cueOn(e);
     if (e.type === 'stepEnd') {
       S.ends.push(e);
       const next = S.steps[e.index + 1];
@@ -165,9 +146,25 @@ function handle(events, catching = false) {
   }
 }
 
+// 자세 포인트를 말하는 동안: 3D에서 그 부위만 표시하고 아래 글도 그 포인트로
+function cueOn(e) {
+  const c = cuePlan(e.step).find((x) => x.at === e.step.seconds - e.remaining);
+  if (!c) return;
+  S.cue = { index: e.index, title: c.title, until: c.at + 9 };
+  if (workViewer) workViewer.emphasize(c.i);
+}
+function cueTip(st) {
+  if (!S.cue) return null;
+  if (S.cue.index === st.index && st.step.seconds - st.remaining < S.cue.until) return S.cue.title;
+  S.cue = null;
+  if (workViewer) workViewer.emphasize(null);
+  return null;
+}
+
 // 단계가 바뀔 때: 3D를 켤지, 어떤 동작을 보여줄지
 function onStep(step, index) {
   S.step = step;
+  S.cue = null;
   const pose = step.kind === 'rest' ? step.next.pose : step.kind === 'ride' ? (step.zone === 'easy' && index === 0 ? 'bike' : null) : step.kind === 'work' ? null : step.pose;
   const w = $('screen-work');
   w.classList.toggle('show3d', !!pose);
@@ -206,6 +203,7 @@ function render() {
     sub = s.kind === 'warmup' ? '웜업' : '쿨다운';
     phase = s.kind === 'warmup' ? '웜업' : '마무리';
   }
+  tip = cueTip(st) || tip;
   $('wTitle').textContent = title;
   $('wSub').textContent = sub;
   if ($('wTip').textContent !== tip) $('wTip').textContent = tip;
@@ -221,7 +219,7 @@ function render() {
 // 화면 아무 데나 탭 = 지금 단계 끝내기 (자전거 주행 중엔 실수로 넘어가지 않게 버튼으로만)
 $('wTap').addEventListener('click', () => {
   if (!S || !S.active || S.paused || !S.step || S.step.kind === 'ride') return;
-  if (window.speechSynthesis) speechSynthesis.cancel();
+  stopSpeech();
   S.timer.skip();
 });
 $('btnSkip').onclick = (e) => { e.stopPropagation(); if (S && S.active) S.timer.skip(); };
@@ -230,7 +228,7 @@ $('btnSkip').onclick = (e) => { e.stopPropagation(); if (S && S.active) S.timer.
 $('btnQuit').onclick = () => {
   if (!S) return;
   S.paused = clock();
-  if (window.speechSynthesis) speechSynthesis.cancel();
+  stopSpeech();
   if (workViewer) workViewer.stop();
   const opt = (k, emo, title, sub) => `<button data-q="${k}"><span class="emo">${emo}</span><span>${title}<small>${sub}</small></span></button>`;
   const ex = S.step && (S.step.exId || (S.step.next && S.step.next.exId));
@@ -313,7 +311,7 @@ $('demoExit').onclick = () => {
     S.active = false; clearInterval(S.tick); S = null;
     wakeLock.release();
     if (workViewer) workViewer.stop();
-    if (window.speechSynthesis) speechSynthesis.cancel();
+    stopSpeech();
   }
   demo = false;
   data = store.load(); // 진짜 기록으로 돌아간다

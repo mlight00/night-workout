@@ -114,6 +114,7 @@ label.check input { width: 1.4rem; height: 1.4rem; accent-color: var(--ok); }
 .plist { list-style: none; display: grid; gap: 0.4rem; }
 .plist li { display: flex; gap: 0.6rem; padding: 0.55rem 0.6rem; border-radius: 12px; background: var(--card); border: 1px solid var(--line); cursor: pointer; }
 .plist li[aria-pressed="true"] { border-color: var(--accent); }
+.plist li.now { border-color: var(--accent); background: #13233a; }
 .plist b { flex: none; width: 1.5rem; height: 1.5rem; border-radius: 50%; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; }
 .plist small { display: block; color: var(--sub); font-size: 0.85rem; }
 

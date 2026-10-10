@@ -7,9 +7,9 @@
 //   el 어깨 올림(m, +는 으쓱) · pr 어깨 내밈(m)
 //   sf 어깨 굽힘(앞/위) · sa 어깨 벌림 · ef 팔꿈치 굽힘(음수 = 뒤로 꺾임) · wf 손목
 //   hf 고관절 굽힘 · ha 고관절 벌림 · hr 고관절 바깥 회전 · kv 무릎 안쪽 모임 · kf 무릎 굽힘 · pf 발목(+는 발끝 내림) · flat 발바닥 수평
-//   hw / ak : 손목·발목 목표 위치 [x,y,z] (있으면 IK로 맞춤)
+//   hw / ak : 손목·발목 목표 위치 [x,y,z] (있으면 IK로 맞춤) · oz 몸 전체를 앞으로(m, 발 고정 동작용)
 
-export const DEF = { grip: 0.85, wy: 0, rx: 0, ry: 0, sp: 0, nk: 0, el: 0, pr: 0, sf: 2, sa: 6, ef: 8, wf: 0, hf: 0, ha: 4, hr: 6, kv: 0, kf: 2, pf: 0, flat: 0, crank: 0 };
+export const DEF = { grip: 0.85, wy: 0, rx: 0, ry: 0, sp: 0, nk: 0, el: 0, pr: 0, sf: 2, sa: 6, ef: 8, wf: 0, hf: 0, ha: 4, hr: 6, kv: 0, kf: 2, pf: 0, flat: 0, crank: 0, oz: 0 };
 const R = Math.PI / 180;
 
 export function interp(fr, t, lin) {
@@ -20,8 +20,12 @@ export function interp(fr, t, lin) {
   if (!lin) u = u * u * (3 - 2 * u);
   const o = { ...DEF };
   for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
-    const base = DEF[k] ?? DEF[k.slice(0, -1)];
-    const x = a[k] ?? b[k] ?? base, y = b[k] ?? a[k] ?? base;
+    // 한쪽 프레임에 없는 각도는 기본값에서 출발/도착한다 (다른 프레임 값을 그대로 쓰면 중간 동작 없이 순간이동)
+    // 한쪽만(L/R) 정한 값은 상대 프레임의 양쪽 공통값으로, 위치 배열(hw·ak)처럼 기본값이 없는 것만 상대 값을 유지
+    const gen = DEF[k] === undefined && DEF[k.slice(0, -1)] !== undefined ? k.slice(0, -1) : null;
+    const base = DEF[k] ?? (gen && DEF[gen]);
+    const pick = (f, g) => f[k] ?? (gen ? f[gen] : undefined) ?? base ?? g[k];
+    const x = pick(a, b), y = pick(b, a);
     o[k] = Array.isArray(x) ? x.map((v, j) => v + (y[j] - v) * u) : x + (y - x) * u;
   }
   return [o, lb];
@@ -53,8 +57,6 @@ export function createRig(THREE, opts = {}) {
   const MT = {};
   const mk = (n, c, o) => (MT[n] = new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.7, metalness: 0 }, o || {})));
   mk('joint', '#4d5a69', { roughness: 0.35, metalness: 0.15 });
-  mk('ok', '#1D9E75', { emissive: '#0b5a45', emissiveIntensity: 0.5, roughness: 0.35, transparent: true, opacity: 0.9, depthTest: false });
-  mk('ng', '#E24B4A', { emissive: '#7a1d1d', emissiveIntensity: 0.5, roughness: 0.35, transparent: true, opacity: 0.9, depthTest: false });
   mk('bone', '#eee5d0', { roughness: 0.5 }); mk('boneD', '#eee5d0', { roughness: 0.5, side: THREE.DoubleSide });
   mk('steel', '#4a535d', { roughness: 0.4, metalness: 0.55 }); mk('pad', '#25282d', { roughness: 0.85 }); mk('foam', '#18191b', { roughness: 0.95 });
   mk('chair', '#9b7653'); mk('mat', '#4f7364', { roughness: 0.95 }); mk('stepm', '#3d434b', { roughness: 0.8 });
@@ -189,7 +191,7 @@ export function createRig(THREE, opts = {}) {
       GRIP[s] = g('grip');
       L.hip.rotation.set(-g('hf') * R, s * g('hr') * R, s * (g('ha') - g('kv')) * R);
       L.kn.rotation.set(g('kf') * R, 0, s * 2 * g('kv') * R);
-      L.an.rotation.set(((g('flat') ? g('hf') - g('kf') - p.rx : 0) + g('pf')) * R, 0, 0);
+      L.an.rotation.set((g('flat') * (g('hf') - g('kf') - p.rx) + g('pf')) * R, 0, 0);
     });
   }
   const wp = (k) => (PT[k] || JS[k]).getWorldPosition(new V3());
@@ -230,7 +232,7 @@ export function createRig(THREE, opts = {}) {
       L.wr.quaternion.copy(L.el.getWorldQuaternion(new Q()).invert().multiply(qW));
     }
   }
-  function legIK(s, target, pole, footPitch) {
+  function legIK(s, target, pole, footPitch, footYaw = 0) {
     const L = SIDE[s];
     root.updateMatrixWorld(true);
     const { a, perp, bend } = twoBone(root, L.hip.position.clone(), target, D.th, D.sh, pole);
@@ -240,7 +242,7 @@ export function createRig(THREE, opts = {}) {
     if (footPitch != null) {
       L.kn.updateMatrixWorld(true);
       const yaw = root.rotation.y;
-      const qW = new Q().setFromEuler(new THREE.Euler(footPitch * R, yaw, 0, 'YXZ'));
+      const qW = new Q().setFromEuler(new THREE.Euler(footPitch * R, yaw + footYaw * R, 0, 'YXZ'));
       L.an.quaternion.copy(L.kn.getWorldQuaternion(new Q()).invert().multiply(qW));
     }
   }
@@ -260,7 +262,8 @@ export function createRig(THREE, opts = {}) {
     EQ.crank.rotation.x = p.crank * R;
     [1, -1].forEach((s) => {
       const th = (p.crank + (s === 1 ? 0 : 180)) * R;
-      const ped = new V3(s * 0.11, C.y - Math.cos(th) * r, C.z + Math.sin(th) * r);
+      // 앞으로 밟기: 맨 아래 → 뒤 → 맨 위 → 앞 (크랭크 팔 회전과 같은 방향)
+      const ped = new V3(s * 0.11, C.y - Math.cos(th) * r, C.z - Math.sin(th) * r);
       EQ.pedal[s].position.copy(ped).add(new V3(0, -0.012, 0));
       const pitch = 12 + 10 * Math.sin(th);
       const ball = BALL.clone().applyEuler(new THREE.Euler(pitch * R, 0, 0));
@@ -268,11 +271,25 @@ export function createRig(THREE, opts = {}) {
     });
   }
 
+  // 발 고정 (스쿼트): 서 있을 때 앞꿈치 자리에 발을 붙여 둔 채 다리를 맞춘다 — 앉을 때 발이 모이거나 미끄러지지 않게.
+  // 발끝은 hr만큼 바깥, 무릎은 발끝 방향 (kv만큼 안쪽으로 모이면 "피해야 할 자세")
+  function plantFeet(p) {
+    const toLocal = root.getWorldQuaternion(new Q()).invert(); // 무릎 방향은 바닥 기준 앞쪽 → 몸(root) 기준으로
+    [1, -1].forEach((s) => {
+      const g = (k) => side(p, k, s);
+      const pitch = g('pf'), yaw = s * g('hr'), knee = s * (g('hr') + 12 - 2 * g('kv'));
+      const ball = BALL.clone().applyEuler(new THREE.Euler(pitch * R, root.rotation.y + yaw * R, 0, 'YXZ'));
+      legIK(s, rt.plant[s].clone().sub(ball), new V3(Math.sin(knee * R), 0, Math.cos(knee * R)).applyQuaternion(toLocal), pitch, yaw);
+    });
+  }
+
   function pose(def, mode, p) {
     const m = def[mode];
     apply(p);
     place(m.at || def.at, m.anc || def.anc);
+    if (p.oz) { root.position.z += p.oz; root.updateMatrixWorld(true); }
     if (def.bike) bikeFeet(p);
+    if (rt.plant) plantFeet(p);
     [1, -1].forEach((s) => {
       const key = s > 0 ? 'L' : 'R';
       const ak = p['ak' + key] || p.ak && [s * p.ak[0], p.ak[1], p.ak[2]];
@@ -302,6 +319,11 @@ export function createRig(THREE, opts = {}) {
     for (const k of EQK) EQ[k].visible = (def.eq || []).includes(k);
     EQ.chairBack.visible = def.id !== 'inclinepush';
     const frame0 = (fr) => interp(fr, 0)[0];
+    rt.plant = null;
+    if (def.plant) {
+      apply(frame0(def[mode].fr)); place(def[mode].at || def.at, def[mode].anc || def.anc);
+      rt.plant = { 1: wp('ball1'), '-1': wp('ball-1') };
+    }
     if (def.push) {
       // 손은 "올라간 자세"에서 어깨 바로 아래 바닥(또는 의자)에
       apply(frame0(def.ok.fr)); place(def.at, def.anc);
@@ -337,17 +359,42 @@ export function createRig(THREE, opts = {}) {
     }
   }
 
-  // 관절 표시: 강조할 관절은 몸을 뚫고 보이게, 나머지는 뼈대 투시 때만
-  let xray = false, hl = new Set(), hlMode = 'ok';
-  function jointVis() {
-    for (const [k, m] of Object.entries(JS)) {
-      const on = hl.has(k);
-      m.material = on ? MT[hlMode] : MT.joint;
-      m.renderOrder = on ? 10 : 0;
-      m.visible = on || xray;
-    }
+  // 강조 표시: 그 부위에 반투명한 원 (항상 화면을 향하고, 몸에 가려지지 않음)
+  function ringMat(hex) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const x = c.getContext('2d'), g = x.createRadialGradient(64, 64, 8, 64, 64, 58);
+    g.addColorStop(0, hex + '66'); g.addColorStop(0.75, hex + '40'); g.addColorStop(1, hex + '26');
+    x.fillStyle = g; x.beginPath(); x.arc(64, 64, 58, 0, Math.PI * 2); x.fill();
+    x.strokeStyle = hex + 'd9'; x.lineWidth = 5; x.beginPath(); x.arc(64, 64, 58, 0, Math.PI * 2); x.stroke();
+    return new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthTest: false, depthWrite: false });
   }
-  function highlight(keys, mode) { hl = new Set(keys); hlMode = mode; jointVis(); }
+  const RING_MT = {}, RINGS = {};
+  function ring(k) {
+    if (RINGS[k] !== undefined) return RINGS[k];
+    const j = JS[k], at = j ? j.parent : PT[k];
+    if (!at) return (RINGS[k] = null);
+    const o = new THREE.Sprite();
+    o.scale.setScalar(j ? Math.max(0.1, j.geometry.parameters.radius * 2.6) : 0.12);
+    if (j) o.position.copy(j.position);
+    o.renderOrder = 10;
+    o.visible = false;
+    at.add(o);
+    return (RINGS[k] = o);
+  }
+
+  // 관절 공은 뼈대 투시 때만, 강조는 반투명 원으로
+  let xray = false, hl = new Set();
+  function jointVis() {
+    for (const m of Object.values(JS)) m.visible = xray;
+    for (const [k, o] of Object.entries(RINGS)) if (o) o.visible = hl.has(k);
+  }
+  function highlight(keys, mode) {
+    hl = new Set(keys);
+    if (!RING_MT[mode]) RING_MT[mode] = ringMat(mode === 'ng' ? '#E24B4A' : '#1D9E75');
+    for (const k of hl) { const o = ring(k); if (o) o.material = RING_MT[mode]; }
+    jointVis();
+  }
   function setXray(on) {
     xray = on;
     for (const b of BONES) b.visible = on;

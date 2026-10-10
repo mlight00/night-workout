@@ -4,6 +4,8 @@ import { $, esc } from './dom.js';
 import { createViewer } from '../body3d/viewer.js';
 import { POSES } from '../body3d/poses.js';
 import { STRENGTH, levelOf } from '../program.js';
+import { speak, stopSpeech, canSpeak } from '../speech.js';
+import { speakable } from '../coach.js';
 
 const GROUPS = [
   ...STRENGTH.map((e) => ({ id: e.id, name: e.group, poses: [...new Set(e.levels.map((l) => l.pose))] })),
@@ -13,7 +15,7 @@ const GROUPS = [
 const VIEWS = [[62, '비스듬히'], [90, '측면'], [0, '정면'], [180, '뒤']];
 const OKC = '#1D9E75', NGC = '#E24B4A';
 
-let viewer = null, levels = null, myKg = 90;
+let viewer = null, levels = null, myKg = 90, reading = 0;
 const cur = { group: 'hang', pose: 'deadhang', mode: 'ok', xray: false, view: 62, focus: null };
 
 function currentPoseOf(groupId) {
@@ -21,7 +23,40 @@ function currentPoseOf(groupId) {
   return levelOf(groupId, levels[groupId].lv).pose;
 }
 
+// 설명 듣기: 이 동작·모드의 설명을 차례로 읽고, 읽는 동안 그 부위만 3D에 표시
+function markNow(i) {
+  [...$('pList').children].forEach((li, j) => li.classList.toggle('now', j === i));
+}
+function stopReading() {
+  if (!reading) return;
+  reading = 0;
+  stopSpeech();
+  viewer.emphasize(null);
+  markNow(-1);
+  $('pSpeak').setAttribute('aria-pressed', false);
+  $('pSpeak').textContent = '🔊 설명 듣기';
+}
+function startReading() {
+  const c = viewer.callouts;
+  const lines = [`${POSES[cur.pose].name}, ${cur.mode === 'ok' ? '바른 자세' : '피해야 할 자세'}입니다`, ...c.map((x, i) => speakable(`${i + 1}번. ${x[1]}. ${x[2]}`))];
+  $('pSpeak').setAttribute('aria-pressed', true);
+  $('pSpeak').textContent = '■ 그만 듣기';
+  const step = (k) => {
+    if (!reading) return;
+    if (k >= lines.length) return stopReading();
+    const my = ++reading;
+    const next = () => { if (reading === my) step(k + 1); };
+    viewer.emphasize(k > 0 ? k - 1 : null);
+    markNow(k - 1);
+    speak(lines[k], next);
+    setTimeout(next, 1500 + lines[k].length * 220); // 끝 알림이 안 오는 기기 대비
+  };
+  reading = 1;
+  step(0);
+}
+
 function render() {
+  stopReading();
   const g = GROUPS.find((x) => x.id === cur.group);
   $('pGroups').innerHTML = GROUPS.map((x) => `<button data-g="${x.id}" aria-pressed="${x.id === cur.group}">${esc(x.name)}</button>`).join('');
   const now = currentPoseOf(cur.group);
@@ -61,11 +96,15 @@ function wire() {
     for (const x of $('pViews').children) x.setAttribute('aria-pressed', x === b);
   };
   $('pXray').onclick = () => { cur.xray = !cur.xray; viewer.setXray(cur.xray); $('pXray').setAttribute('aria-pressed', cur.xray); };
+  $('pSpeak').hidden = !canSpeak;
+  $('pSpeak').onclick = () => (reading ? stopReading() : startReading());
   $('pList').onclick = (e) => {
     const li = e.target.closest('li'); if (!li) return;
+    stopReading();
     const k = viewer.callouts[+li.dataset.i][0];
     cur.focus = cur.focus === k ? null : k;
     viewer.setFocus(cur.focus);
+    viewer.emphasize(cur.focus ? +li.dataset.i : null);
     for (const x of $('pList').children) x.setAttribute('aria-pressed', x === li && !!cur.focus);
   };
   $('pKg').oninput = () => setKg(+$('pKg').value);
@@ -104,5 +143,5 @@ function setKg(v) {
 }
 
 export function closePosture() {
-  if (viewer) viewer.stop();
+  if (viewer) { stopReading(); viewer.stop(); }
 }

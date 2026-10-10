@@ -49,3 +49,23 @@ test('보간: 중간 시각은 두 값 사이, 배열도 보간, 없는 값은 �
   const [q] = interp([[0, { kfR: 140 }], [1, { kfR: 140 }]], 0.3);
   assert.equal(q.kfR, 140);
 });
+
+test('보간: 한쪽 프레임에만 있는 각도는 기본값에서 움직인다 (순간이동 금지)', () => {
+  const fr = [[0, { flat: 1 }], [1, { hf: 120, kf: 90, flat: 1 }]];
+  const [p] = interp(fr, 0.5, true);
+  assert.equal(p.hf, 60);
+  assert.equal(p.kf, DEF.kf + (90 - DEF.kf) / 2);
+  const [q] = interp([[0, { kfL: 100, kf: 0 }], [1, { kf: 40 }]], 0.5, true);
+  assert.equal(q.kfL, 70); // 한쪽만 정한 값은 상대의 공통값(40)으로
+  const [r] = interp([[0, { hw: [1, 1, 1] }], [1, {}]], 0.5, true);
+  assert.deepEqual(r.hw, [1, 1, 1]); // 위치 배열은 그대로 유지
+});
+
+test('스쿼트: 내려가는 중간에는 무릎이 절반쯤 굽어 있다', () => {
+  for (const id of ['chairsquat', 'squat']) {
+    const fr = POSES[id].ok.fr, down = fr.find((f) => f[1].kf > 80)[1].kf;
+    const t = (fr[1][0] + fr[2][0]) / 2;
+    const [p] = interp(fr, t);
+    assert.ok(p.kf > 20 && p.kf < down - 20, `${id} kf=${p.kf}`);
+  }
+});

@@ -38,7 +38,7 @@ export function createViewer(container, opts = {}) {
     mode = def[m] ? m : 'ok';
     rig.setup(def, mode);
     const c = def[mode].c || [];
-    rig.highlight(c.flatMap((x) => x[4] || []), mode);
+    emphasize(null);
     az = def.view ?? 62;
     elv = 10;
     focus = null;
@@ -57,6 +57,14 @@ export function createViewer(container, opts = {}) {
         marks.push(d);
       }
     }
+  }
+
+  // 강조: i번째 설명의 부위만 (없으면 모든 설명의 관절). 관절 목록이 없는 설명은 그 지점에 원을 띄운다
+  function emphasize(i) {
+    if (!def) return;
+    const c = def[mode].c || [];
+    const keys = i == null ? c.flatMap((x) => x[4] || []) : c[i] ? c[i][4] || [c[i][0]] : [];
+    rig.highlight(keys, mode);
   }
 
   function frame(now, tFixed) {
@@ -113,6 +121,7 @@ export function createViewer(container, opts = {}) {
     setXray: (on) => rig.setXray(on),
     setBody: (kg) => rig.setBody(kg),
     setFocus(k) { focus = k; },
+    emphasize,
     get label() { return label; },
     get callouts() { return def ? def[mode].c || [] : []; },
     hasBad: (id) => !!(POSES[id] && POSES[id].ng),
