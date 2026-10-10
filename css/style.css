@@ -75,7 +75,7 @@ label.check input { width: 1.4rem; height: 1.4rem; accent-color: var(--ok); }
 .work.show3d .wtap { align-items: flex-end; justify-content: flex-start; text-align: right; padding: 3rem 1.2rem 0; pointer-events: auto; }
 .work.show3d .wclock { font-size: min(22vh, 30vw); text-shadow: 0 2px 12px #000; }
 .work.show3d .wclock.long { font-size: min(22vh, 18vw); }
-.work.show3d .wtitle, .work.show3d .wsub { text-shadow: 0 1px 6px #000; background: rgba(11, 15, 20, 0.62); border-radius: 8px; padding: 0.1rem 0.55rem; }
+.work.show3d .wtitle, .work.show3d .wsub { text-shadow: 0 1px 6px #000; background: rgba(11, 15, 20, 0.82); border-radius: 8px; padding: 0.1rem 0.55rem; }
 .work.show3d .wtip { background: linear-gradient(transparent, rgba(11, 15, 20, 0.85) 35%); padding: 1.5rem 1rem 0.4rem; }
 /* 자전거 구간 색 */
 .work.zone-target .wsub { color: #7fe0b6; } .work.zone-hill .wsub { color: var(--hill); } .work.zone-hill .wclock { color: var(--hill); }
