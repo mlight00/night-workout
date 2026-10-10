@@ -142,3 +142,14 @@ for (const [k, steps] of REAL.entries()) {
     assert.equal(starts, steps.length);
   });
 }
+
+test('일시정지: shift한 만큼 현재 단계가 늦게 끝난다', () => {
+  const t = createTimer(STEPS);
+  t.start(0);
+  t.tick(1000);
+  t.shift(5000); // 5초 멈춰 있었다
+  assert.deepEqual(t.tick(6000).filter((e) => e.type === 'stepEnd'), []);
+  assert.equal(t.state().index, 0);
+  assert.equal(t.state().remaining, 2);
+  assert.equal(t.tick(8000).find((e) => e.type === 'stepEnd').index, 0);
+});

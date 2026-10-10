@@ -69,6 +69,12 @@ export function createTimer(steps) {
     skipRequested = true;
   }
 
+  // 일시정지했던 시간만큼 현재 단계를 뒤로 민다 (그만두기 확인 화면에서 "계속하기")
+  function shift(ms) {
+    stepStartMs += ms;
+    lastTickMs += ms;
+  }
+
   function state() {
     const step = steps[index];
     if (finished) {
@@ -88,5 +94,5 @@ export function createTimer(steps) {
     };
   }
 
-  return { start, tick, skip, state };
+  return { start, tick, skip, shift, state };
 }

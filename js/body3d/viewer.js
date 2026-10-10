@@ -65,7 +65,9 @@ export function createViewer(container, opts = {}) {
     const [p, lb] = interp(m.fr, t, m.lin);
     label = lb || label;
     rig.pose(def, mode, p);
-    const wt = focus ? rig.wp(focus) : new THREE.Vector3(...def.tg), wd = focus ? 1.25 : def.dist * (opts.zoom || 1);
+    // 세로 화면은 옆 폭이 좁으니 카메라를 그만큼 뒤로 뺀다
+    const narrow = cam.aspect < 0.9 ? Math.pow(0.9 / cam.aspect, 0.75) : 1;
+    const wt = focus ? rig.wp(focus) : new THREE.Vector3(...def.tg), wd = (focus ? 1.25 : def.dist * (opts.zoom || 1)) * narrow;
     if (!ctg || tFixed != null) { ctg = wt.clone(); cds = wd; } else { ctg.lerp(wt, 0.12); cds += (wd - cds) * 0.12; }
     const e = elv * R, a = az * R;
     cam.position.set(ctg.x + cds * Math.sin(a) * Math.cos(e), ctg.y + cds * Math.sin(e), ctg.z + cds * Math.cos(a) * Math.cos(e));

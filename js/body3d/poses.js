@@ -233,7 +233,7 @@ export const POSES = {
     },
   },
   armcircle: {
-    name: '어깨 돌리기', eq: [], tg: [0, 1.05, 0], dist: 3.6, view: 30, anc: BALLS, at: [0, 0, 0.1],
+    name: '어깨 돌리기', eq: [], tg: [0, 1.05, 0], dist: 4.6, view: 30, anc: BALLS, at: [0, 0, 0.1],
     ok: {
       dur: 1600, lin: true,
       fr: [[0, { flat: 1, sa: 86, sf: 0, ef: 6 }, '팔을 옆으로 펴고 작게 원을 그리다 점점 크게'], [0.25, { flat: 1, sa: 96, sf: 16, ef: 6 }], [0.5, { flat: 1, sa: 106, sf: 0, ef: 6 }], [0.75, { flat: 1, sa: 96, sf: -16, ef: 6 }], [1, { flat: 1, sa: 86, sf: 0, ef: 6 }]],
