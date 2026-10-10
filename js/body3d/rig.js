@@ -1,5 +1,6 @@
 // 3D 신체 모델 + 기구. THREE(r128 전역)를 받아서 만든다.
 // 자세는 poses.js의 데이터(관절 각도 키프레임)로 정한다.
+// 이 파일은 "보이지 않는 뼈대"로 관절 위치·각도를 계산하고, 겉모습은 avatar.js의 무료 3D 캐릭터가 그 뼈대를 따라 움직인다.
 //
 // 관절 각도 파라미터 (도 단위, 끝에 L/R을 붙이면 한쪽만)
 //   rx 몸 전체 앞 기울기 · ry 몸 방향 · sp 척추 굽힘 · nk 목 숙임
@@ -26,6 +27,14 @@ export function interp(fr, t, lin) {
   return [o, lb];
 }
 
+// 신체 치수 (m) — 캐릭터 모델 뼈대를 AVATAR_SCALE로 줄여서 잰 값
+export const D = {
+  hipX: 0.0857, th: 0.3886, sh: 0.3857, sole: 0.0974, ball: 0.13, heel: 0.06, toe: 0.205,
+  spineY: 0.117, shX: 0.2045, shY: 0.402, shZ: -0.022, neckY: 0.493, neckZ: -0.01, headY: 0.064, headZ: 0.02,
+  ua: 0.2786, fa: 0.264, gp: 0.07,
+};
+export const AVATAR_SCALE = 0.00974;
+
 export function createRig(THREE, opts = {}) {
   const V3 = THREE.Vector3, Q = THREE.Quaternion, dark = !!opts.dark;
   const scene = new THREE.Scene();
@@ -43,17 +52,13 @@ export function createRig(THREE, opts = {}) {
 
   const MT = {};
   const mk = (n, c, o) => (MT[n] = new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.7, metalness: 0 }, o || {})));
-  mk('skin', '#d9a07a', { roughness: 0.55 }); mk('joint', '#cf946c', { roughness: 0.55 });
-  mk('ok', '#1D9E75', { emissive: '#0b5a45', emissiveIntensity: 0.5, roughness: 0.35, transparent: true, opacity: 0.88, depthTest: false });
-  mk('ng', '#E24B4A', { emissive: '#7a1d1d', emissiveIntensity: 0.5, roughness: 0.35, transparent: true, opacity: 0.88, depthTest: false });
-  mk('shirt', '#2b6a88', { roughness: 0.85 }); mk('shorts', '#2f343b', { roughness: 0.92 }); mk('sock', '#e6e6e2', { roughness: 0.9 });
-  mk('shoe', '#f1f1ee', { roughness: 0.55 }); mk('sole', '#55544f', { roughness: 0.8 }); mk('lace', '#c9c9c4');
-  mk('hair', '#262624', { roughness: 0.9 }); mk('eye', '#1a1a18', { roughness: 0.3 }); mk('sclera', '#f2efe9', { roughness: 0.4 }); mk('lip', '#a8645a', { roughness: 0.6 });
+  mk('joint', '#4d5a69', { roughness: 0.35, metalness: 0.15 });
+  mk('ok', '#1D9E75', { emissive: '#0b5a45', emissiveIntensity: 0.5, roughness: 0.35, transparent: true, opacity: 0.9, depthTest: false });
+  mk('ng', '#E24B4A', { emissive: '#7a1d1d', emissiveIntensity: 0.5, roughness: 0.35, transparent: true, opacity: 0.9, depthTest: false });
   mk('bone', '#eee5d0', { roughness: 0.5 }); mk('boneD', '#eee5d0', { roughness: 0.5, side: THREE.DoubleSide });
   mk('steel', '#4a535d', { roughness: 0.4, metalness: 0.55 }); mk('pad', '#25282d', { roughness: 0.85 }); mk('foam', '#18191b', { roughness: 0.95 });
   mk('chair', '#9b7653'); mk('mat', '#4f7364', { roughness: 0.95 }); mk('stepm', '#3d434b', { roughness: 0.8 });
   mk('bikeF', '#2f3438', { roughness: 0.5, metalness: 0.4 }); mk('bikeW', '#7b848d', { roughness: 0.35, metalness: 0.7 }); mk('screen', '#1D9E75', { emissive: '#0b5a45', emissiveIntensity: 0.6 });
-  const FADE = ['skin', 'shirt', 'shorts', 'sock', 'shoe', 'sole', 'lace', 'hair', 'eye', 'sclera', 'lip'];
 
   const M = (g, m, sh = 1) => { const o = new THREE.Mesh(g, MT[m]); o.castShadow = !!sh; o.receiveShadow = true; return o; };
   const G = (p, x = 0, y = 0, z = 0) => { const g = new THREE.Group(); g.position.set(x, y, z); p && p.add(g); return g; };
@@ -62,194 +67,56 @@ export function createRig(THREE, opts = {}) {
   const SP = (r, m) => M(new THREE.SphereGeometry(r, 24, 16), m);
   const CY = (a, b, h, m) => M(new THREE.CylinderGeometry(a, b, h, 18), m);
   const BX = (w, h, d, m) => M(new THREE.BoxGeometry(w, h, d), m);
-  // 캡슐(손가락 마디): y=0에서 -len까지
-  function capPts(r, len) {
-    const pts = [];
-    for (let i = 0; i <= 6; i++) { const a = (i / 6) * (Math.PI / 2); pts.push(new THREE.Vector2(Math.sin(a) * r, -len - Math.cos(a) * r)); }
-    for (let i = 6; i >= 0; i--) { const a = (i / 6) * (Math.PI / 2); pts.push(new THREE.Vector2(Math.sin(a) * r, Math.cos(a) * r)); }
-    return pts;
-  }
   const BONES = [], JS = {}, PT = {}, SIDE = {}, LINKS = [];
   const bone = (o) => { BONES.push(o); o.visible = false; o.castShadow = false; return o; };
   const pnt = (n, p, x, y, z) => (PT[n] = G(p, x, y, z));
-  const link = (a, b, r1, r2, m, isBone) => { const o = M(new THREE.CylinderGeometry(r2, r1, 1, 14), m); scene.add(o); LINKS.push({ o, a, b }); if (isBone) bone(o); return o; };
+  const link = (a, b, r1, r2, m) => { const o = bone(M(new THREE.CylinderGeometry(r2, r1, 1, 14), m)); scene.add(o); LINKS.push({ o, a, b }); return o; };
 
-  // ---- 단면을 이어 붙인 몸(로프트): 고리마다 높이 y, 반폭 w, 앞 깊이 f, 뒤 깊이 b ----
-  const SEG = 40;
-  function loftFill(rings, n, arr) {
-    let o = 0;
-    for (const r of rings) {
-      for (let j = 0; j < SEG; j++) {
-        const t = (j / SEG) * Math.PI * 2, c = Math.cos(t), s = Math.sin(t);
-        const pc = Math.sign(c) * Math.abs(c) ** (2 / n), ps = Math.sign(s) * Math.abs(s) ** (2 / n);
-        arr[o++] = (r.x || 0) + r.w * pc; arr[o++] = r.y; arr[o++] = (r.z || 0) + (ps >= 0 ? r.f : r.b) * ps;
-      }
-    }
-    const a = rings[0], z = rings.at(-1);
-    arr[o++] = a.x || 0; arr[o++] = a.y; arr[o++] = a.z || 0;
-    arr[o++] = z.x || 0; arr[o++] = z.y; arr[o++] = z.z || 0;
-  }
-  function loft(rings, n = 2.2) {
-    const R = rings.length, pos = new Float32Array((R * SEG + 2) * 3), idx = [];
-    loftFill(rings, n, pos);
-    for (let i = 0; i < R - 1; i++) for (let j = 0; j < SEG; j++) {
-      const a = i * SEG + j, b = i * SEG + ((j + 1) % SEG), c = (i + 1) * SEG + ((j + 1) % SEG), d = (i + 1) * SEG + j;
-      idx.push(a, d, b, b, d, c);
-    }
-    const c0 = R * SEG, c1 = R * SEG + 1, top = (R - 1) * SEG;
-    for (let j = 0; j < SEG; j++) { idx.push(c0, j, (j + 1) % SEG); idx.push(c1, top + ((j + 1) % SEG), top + j); }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    g.setIndex(idx);
-    g.computeVertexNormals();
-    g.userData.n = n;
-    return g;
-  }
-  function reloft(g, rings) { loftFill(rings, g.userData.n, g.attributes.position.array); g.attributes.position.needsUpdate = true; g.computeVertexNormals(); }
-  const grow = (rings, k, kz = k) => rings.map((r) => ({ ...r, w: r.w * k, f: r.f * kz, b: r.b * kz }));
-
-  // 몸통: f = 0이면 75kg(보통), 1이면 90kg(지금, 배 나옴)
-  function torsoRings(f) {
-    const L = (a, b) => a + (b - a) * f;
-    return [
-      { y: -0.215, w: 0.06, f: 0.04, b: 0.05 },
-      { y: -0.2, w: 0.13, f: 0.08, b: 0.095 },
-      { y: -0.15, w: 0.172, f: 0.105, b: 0.128 },
-      { y: -0.08, w: L(0.172, 0.184), f: L(0.1, 0.12), b: L(0.12, 0.132) },
-      { y: 0, w: L(0.156, 0.176), f: L(0.09, 0.128), b: 0.1 },
-      { y: 0.08, w: L(0.146, 0.173), f: L(0.088, 0.148), b: L(0.088, 0.097) },
-      { y: 0.16, w: L(0.152, 0.176), f: L(0.094, 0.143), b: L(0.093, 0.1) },
-      { y: 0.24, w: L(0.17, 0.188), f: L(0.106, 0.128), b: 0.107 },
-      { y: 0.31, w: 0.192, f: 0.118, b: 0.114 },
-      { y: 0.37, w: 0.2, f: 0.121, b: 0.117 },
-      { y: 0.42, w: 0.197, f: 0.104, b: 0.11 },
-      { y: 0.455, w: 0.168, f: 0.083, b: 0.094 },
-      { y: 0.48, w: 0.11, f: 0.064, b: 0.074 },
-      { y: 0.505, w: 0.066, f: 0.05, b: 0.055 },
-      { y: 0.52, w: 0.055, f: 0.045, b: 0.05 },
-    ];
-  }
-  const UA = [ // 위팔: 어깨세모근 · 이두 · 삼두
-    { y: -0.345, w: 0.034, f: 0.03, b: 0.034 }, { y: -0.33, w: 0.041, f: 0.036, b: 0.04 }, { y: -0.3, w: 0.044, f: 0.042, b: 0.045 },
-    { y: -0.24, w: 0.046, f: 0.05, b: 0.048 }, { y: -0.18, w: 0.048, f: 0.055, b: 0.052 }, { y: -0.12, w: 0.052, f: 0.052, b: 0.055 },
-    { y: -0.06, w: 0.06, f: 0.055, b: 0.058, x: 0.004 }, { y: 0, w: 0.066, f: 0.06, b: 0.062, x: 0.006 }, { y: 0.035, w: 0.058, f: 0.052, b: 0.054, x: 0.004 }, { y: 0.06, w: 0.03, f: 0.03, b: 0.03 },
-  ];
-  const FA = [ // 아래팔: 팔꿈치 쪽이 굵고 손목 쪽이 납작
-    { y: -0.268, w: 0.022, f: 0.016, b: 0.016 }, { y: -0.255, w: 0.029, f: 0.02, b: 0.021 }, { y: -0.22, w: 0.032, f: 0.024, b: 0.025 },
-    { y: -0.16, w: 0.037, f: 0.031, b: 0.031 }, { y: -0.09, w: 0.045, f: 0.041, b: 0.039 }, { y: -0.03, w: 0.049, f: 0.044, b: 0.045 },
-    { y: 0.01, w: 0.044, f: 0.038, b: 0.044 }, { y: 0.03, w: 0.026, f: 0.024, b: 0.026 },
-  ];
-  const TH = [ // 허벅지: 앞(넙다리네갈래) · 뒤(햄스트링)
-    { y: -0.455, w: 0.04, f: 0.04, b: 0.04 }, { y: -0.44, w: 0.052, f: 0.05, b: 0.05 }, { y: -0.41, w: 0.058, f: 0.063, b: 0.053 },
-    { y: -0.34, w: 0.066, f: 0.072, b: 0.063 }, { y: -0.25, w: 0.078, f: 0.083, b: 0.076 }, { y: -0.15, w: 0.088, f: 0.09, b: 0.086 },
-    { y: -0.05, w: 0.095, f: 0.094, b: 0.1 }, { y: 0.03, w: 0.09, f: 0.085, b: 0.096 }, { y: 0.07, w: 0.05, f: 0.05, b: 0.05 },
-  ];
-  const SN = [ // 정강이 + 종아리 볼록
-    { y: -0.44, w: 0.026, f: 0.026, b: 0.026 }, { y: -0.42, w: 0.03, f: 0.03, b: 0.031 }, { y: -0.38, w: 0.031, f: 0.03, b: 0.032 },
-    { y: -0.3, w: 0.037, f: 0.034, b: 0.043 }, { y: -0.22, w: 0.046, f: 0.038, b: 0.058 }, { y: -0.13, w: 0.054, f: 0.042, b: 0.075 },
-    { y: -0.06, w: 0.052, f: 0.045, b: 0.07 }, { y: 0.0, w: 0.05, f: 0.046, b: 0.05 }, { y: 0.02, w: 0.03, f: 0.03, b: 0.03 },
-  ];
-
+  // ---- 보이지 않는 뼈대 (관절 계산용). 뼈대 투시 때만 뼈가 보인다 ----
   const root = G(scene);
   root.rotation.order = 'YXZ';
-  const BODY = { thick: [] }; // 체중 따라 바뀌는 부분
   const P = { root };
+  const GRIP = { 1: 0.85, '-1': 0.85 };
   {
-    const sp = (P.spine = G(root, 0, 0.06, 0));
-    const r0 = torsoRings(1);
-    BODY.tor = loft(r0, 2.3); sp.add(M(BODY.tor, 'skin'));
-    BODY.top = loft(grow(r0.filter((r) => r.y >= -0.04 && r.y <= 0.455), 1.025, 1.035), 2.3); sp.add(M(BODY.top, 'shirt'));
-    BODY.pants = loft(grow(r0.filter((r) => r.y <= 0.02), 1.035, 1.045), 2.3); sp.add(M(BODY.pants, 'shorts'));
-    const pel = bone(put(M(new THREE.TorusGeometry(1, 0.09, 8, 30), 'bone'), root, 0, 0.02, 0));
+    const pel = bone(put(M(new THREE.TorusGeometry(1, 0.09, 8, 30), 'bone'), root, 0, 0.03, 0));
     pel.scale.set(0.13, 0.09, 0.09); pel.rotation.x = Math.PI / 2;
-    bone(put(CY(0.015, 0.015, 0.6, 'bone'), sp, 0, 0.21, -0.08));
-    for (let y = -0.08; y < 0.5; y += 0.042) bone(put(BX(0.042, 0.018, 0.032, 'bone'), sp, 0, y, -0.085));
-    [0.2, 0.245, 0.29, 0.335, 0.38, 0.42].forEach((y, i) => {
+    const sp = (P.spine = G(root, 0, D.spineY, 0));
+    bone(put(CY(0.015, 0.015, 0.6, 'bone'), sp, 0, 0.18, -0.07));
+    for (let y = -0.1; y < 0.5; y += 0.042) bone(put(BX(0.042, 0.018, 0.032, 'bone'), sp, 0, y, -0.075));
+    [0.17, 0.215, 0.26, 0.305, 0.35, 0.39].forEach((y, i) => {
       const t = bone(put(M(new THREE.TorusGeometry(1, 0.06, 6, 32), 'bone'), sp, 0, y, 0));
-      const r = [0.158, 0.17, 0.178, 0.18, 0.172, 0.15][i];
-      t.rotation.x = Math.PI / 2; t.scale.set(r, r * 0.68, r * 0.68);
+      const r = [0.14, 0.152, 0.16, 0.162, 0.155, 0.135][i];
+      t.rotation.x = Math.PI / 2; t.scale.set(r, r * 0.7, r * 0.7);
     });
-    pnt('c7', sp, 0, 0.47, -0.08); pnt('navel', sp, 0, 0.1, 0.15); pnt('back', sp, 0, 0.28, -0.11); pnt('lback', sp, 0, 0.05, -0.1); pnt('chest', sp, 0, 0.36, 0.125);
-
-    // 목 · 머리
-    const nk = (P.neck = G(sp, 0, 0.47, -0.015));
-    nk.add(M(loft([{ y: -0.03, w: 0.06, f: 0.055, b: 0.062 }, { y: 0.03, w: 0.054, f: 0.05, b: 0.055 }, { y: 0.09, w: 0.05, f: 0.046, b: 0.05 }, { y: 0.12, w: 0.03, f: 0.03, b: 0.03 }], 2.1), 'skin'));
-    bone(put(CY(0.013, 0.013, 0.1, 'bone'), nk, 0, 0.04, -0.02));
-    const hd = (P.head = G(nk, 0, 0.085, 0));
-    const hc = G(hd, 0, 0.1, 0.012); PT.head = hc;
-    put(EL(0.08, 0.1, 0.097, 'skin'), hc, 0, 0.012, -0.006);           // 머리뼈
-    put(EL(0.067, 0.072, 0.075, 'skin'), hc, 0, -0.038, 0.02);         // 얼굴 아래쪽
-    put(EL(0.04, 0.028, 0.034, 'skin'), hc, 0, -0.088, 0.052);         // 턱
-    const nose = put(CY(0.005, 0.017, 0.042, 'skin'), hc, 0, -0.016, 0.097); nose.rotation.x = -1.35;
-    put(SP(0.012, 'skin'), hc, 0, -0.034, 0.104);
-    put(BX(0.03, 0.004, 0.006, 'lip'), hc, 0, -0.063, 0.082);
-    const hr = put(M(new THREE.SphereGeometry(1, 32, 14, 0, Math.PI * 2, 0, Math.PI * 0.52), 'hair'), hc, 0, 0.016, -0.012);
-    hr.scale.set(0.085, 0.106, 0.104); hr.rotation.x = -0.36;
-    [1, -1].forEach((s) => {
-      put(EL(0.011, 0.008, 0.006, 'sclera'), hc, s * 0.03, 0.006, 0.084);
-      put(SP(0.0055, 'eye'), hc, s * 0.03, 0.006, 0.089);
-      const br = put(BX(0.03, 0.006, 0.01, 'hair'), hc, s * 0.031, 0.026, 0.087); br.rotation.z = -s * 0.12;
-      put(BX(0.008, 0.03, 0.012, 'hair'), hc, s * 0.078, 0.0, -0.002);  // 구레나룻
-      const e = put(EL(0.009, 0.023, 0.015, 'skin'), hc, s * 0.079, -0.01, -0.012); e.rotation.z = s * 0.15;
-      if (s === 1) PT.ear = e;
-    });
-
+    pnt('c7', sp, 0, 0.47, -0.07); pnt('navel', sp, 0, -0.01, 0.12); pnt('back', sp, 0, 0.2, -0.105); pnt('lback', sp, 0, 0.0, -0.095); pnt('chest', sp, 0, 0.29, 0.12);
+    const nk = (P.neck = G(sp, 0, D.neckY, D.neckZ));
+    bone(put(CY(0.013, 0.013, 0.07, 'bone'), nk, 0, 0.03, -0.015));
+    const hd = (P.head = G(nk, 0, D.headY, D.headZ));
+    PT.head = G(hd, 0, 0.1, 0.03);
+    PT.ear = G(hd, 0.074, 0.07, -0.008);
     [1, -1].forEach((s) => {
       const L = (SIDE[s] = {});
-      const gd = (L.gird = G(sp, s * 0.2, 0.45, -0.01));
+      const gd = (L.gird = G(sp, s * D.shX, D.shY, D.shZ));
       const ac = pnt('acr' + s, gd, 0, 0.05, 0);
-      const sc = new THREE.Shape(); sc.moveTo(0, 0); sc.lineTo(-0.11, -0.02); sc.lineTo(-0.03, -0.17); sc.closePath();
-      const scp = bone(put(M(new THREE.ShapeGeometry(sc), 'boneD'), gd, -s * 0.035, -0.01, -0.12)); scp.scale.x = s;
-      link(pnt('st' + s, sp, s * 0.02, 0.46, 0.085), ac, 0.011, 0.011, 'bone', 1);
-      link(pnt('tr' + s, sp, s * 0.03, 0.485, -0.03), ac, 0.052, 0.04, 'skin');
-
-      // 팔
-      const sh = (L.sh = G(gd)); JS['sh' + s] = put(SP(0.058, 'joint'), sh, 0, 0, 0);
-      const ua = M(loft(UA.map((r) => ({ ...r, x: (r.x || 0) * s })), 2.1), 'skin'); sh.add(ua); BODY.thick.push(ua);
-      bone(put(CY(0.013, 0.012, 0.3, 'bone'), sh, 0, -0.165, 0));
-      const el = (L.el = G(sh, 0, -0.33, 0)); JS['el' + s] = put(SP(0.04, 'joint'), el, 0, 0, -0.008);
-      el.add(M(loft(FA, 2.3), 'skin'));
-      [1, -1].forEach((k) => bone(put(CY(0.008, 0.007, 0.23, 'bone'), el, k * 0.012, -0.13, 0)));
-      const wr = (L.wr = G(el, 0, -0.255, 0)); JS['wr' + s] = put(SP(0.028, 'joint'), wr, 0, 0, 0);
-      // 손: 손바닥 + 손가락 4개(2마디) + 엄지 — grip 값으로 쥔다
-      put(EL(0.04, 0.052, 0.018, 'skin'), wr, 0, -0.052, 0.002);
-      L.fingers = [];
-      for (let k = 0; k < 4; k++) {
-        const len = [0.04, 0.045, 0.043, 0.035][k];
-        const f1 = G(wr, s * (0.028 - k * 0.0185), -0.098, 0.004);
-        f1.add(M(new THREE.LatheGeometry(capPts(0.0095, len), 12), 'skin'));
-        const f2 = G(f1, 0, -len, 0);
-        f2.add(M(new THREE.LatheGeometry(capPts(0.0088, len * 0.85), 12), 'skin'));
-        L.fingers.push([f1, f2]);
-      }
-      const th1 = G(wr, s * 0.034, -0.03, 0.014); th1.rotation.set(-0.35, 0, s * 0.55);
-      th1.add(M(new THREE.LatheGeometry(capPts(0.011, 0.034), 12), 'skin'));
-      const th2 = G(th1, 0, -0.034, 0); th2.add(M(new THREE.LatheGeometry(capPts(0.0098, 0.028), 12), 'skin'));
-      L.thumb = [th1, th2];
-      pnt('gp' + s, wr, 0, -0.07, 0); PT['sh' + s] = sh; PT['el' + s] = el; PT['wr' + s] = wr;
-
-      // 다리
-      const hp = (L.hip = G(root, s * 0.095, 0, 0)); JS['hp' + s] = put(SP(0.07, 'joint'), hp, 0, 0, 0);
-      const th = M(loft(TH, 2.2), 'skin'); hp.add(th); BODY.thick.push(th);
-      const pl = M(loft(grow(TH.filter((r) => r.y >= -0.2), 1.07), 2.2), 'shorts'); hp.add(pl); BODY.thick.push(pl);
-      bone(put(CY(0.016, 0.014, 0.4, 'bone'), hp, 0, -0.21, 0));
-      const kn = (L.kn = G(hp, 0, -0.43, 0)); JS['kn' + s] = put(SP(0.046, 'joint'), kn, 0, 0, 0.022);
-      kn.add(M(loft(SN, 2.2), 'skin')); bone(put(CY(0.014, 0.012, 0.4, 'bone'), kn, 0, -0.215, 0));
-      const an = (L.an = G(kn, 0, -0.43, 0)); JS['an' + s] = put(SP(0.03, 'joint'), an, 0, 0, 0);
-      // 양말 + 운동화(갑피 · 앞코 · 뒤축 · 끈 · 밑창)
-      put(CY(0.036, 0.038, 0.05, 'sock'), an, 0, 0.005, 0);
-      put(EL(0.048, 0.041, 0.122, 'shoe'), an, 0, -0.048, 0.045);
-      put(EL(0.046, 0.032, 0.062, 'shoe'), an, 0, -0.062, 0.13);
-      put(EL(0.043, 0.042, 0.05, 'shoe'), an, 0, -0.05, -0.052);
-      const lc = put(BX(0.03, 0.006, 0.085, 'lace'), an, 0, -0.012, 0.075); lc.rotation.x = -0.33;
-      put(BX(0.098, 0.017, 0.24, 'sole'), an, 0, -0.084, 0.03);
-      put(EL(0.049, 0.0085, 0.06, 'sole'), an, 0, -0.084, 0.15);
-      put(EL(0.047, 0.0085, 0.04, 'sole'), an, 0, -0.084, -0.085);
-      pnt('ball' + s, an, 0, -0.0925, 0.12); pnt('heel' + s, an, 0, -0.0925, -0.075); pnt('toe' + s, an, 0, -0.075, 0.185);
+      const sc = new THREE.Shape(); sc.moveTo(0, 0); sc.lineTo(-0.11, -0.02); sc.lineTo(-0.03, -0.16); sc.closePath();
+      const scp = bone(put(M(new THREE.ShapeGeometry(sc), 'boneD'), gd, -s * 0.035, -0.01, -0.11)); scp.scale.x = s;
+      link(pnt('st' + s, sp, s * 0.02, 0.42, 0.075), ac, 0.011, 0.011, 'bone');
+      const sh = (L.sh = G(gd)); JS['sh' + s] = put(SP(0.05, 'joint'), sh, 0, 0, 0);
+      bone(put(CY(0.013, 0.012, D.ua - 0.04, 'bone'), sh, 0, -D.ua / 2, 0));
+      const el = (L.el = G(sh, 0, -D.ua, 0)); JS['el' + s] = put(SP(0.036, 'joint'), el, 0, 0, 0);
+      [1, -1].forEach((k) => bone(put(CY(0.008, 0.007, D.fa - 0.03, 'bone'), el, k * 0.012, -D.fa / 2, 0)));
+      const wr = (L.wr = G(el, 0, -D.fa, 0)); JS['wr' + s] = put(SP(0.026, 'joint'), wr, 0, 0, 0);
+      pnt('gp' + s, wr, 0, -D.gp, 0); PT['sh' + s] = sh; PT['el' + s] = el; PT['wr' + s] = wr; PT['gird' + s] = gd;
+      const hp = (L.hip = G(root, s * D.hipX, 0, 0)); JS['hp' + s] = put(SP(0.06, 'joint'), hp, 0, 0, 0);
+      bone(put(CY(0.016, 0.014, D.th - 0.05, 'bone'), hp, 0, -D.th / 2, 0));
+      const kn = (L.kn = G(hp, 0, -D.th, 0)); JS['kn' + s] = put(SP(0.045, 'joint'), kn, 0, 0, 0.02);
+      bone(put(CY(0.014, 0.012, D.sh - 0.05, 'bone'), kn, 0, -D.sh / 2, 0));
+      const an = (L.an = G(kn, 0, -D.sh, 0)); JS['an' + s] = put(SP(0.03, 'joint'), an, 0, 0, 0);
+      pnt('ball' + s, an, 0, -D.sole, D.ball); pnt('heel' + s, an, 0, -D.sole, -D.heel); pnt('toe' + s, an, 0, -D.sole + 0.015, D.toe);
       PT['hip' + s] = hp; PT['kn' + s] = kn; PT['an' + s] = an;
     });
-    // 왼쪽(+X)을 기본 측정 쪽으로
     for (const k of ['sh', 'el', 'wr', 'hip', 'kn', 'an']) PT[k] = PT[k + '1'];
+    PT.root = root; PT.spine = P.spine; PT.neck = P.neck; PT.head0 = P.head;
   }
 
   // ---- 기구 ----
@@ -288,9 +155,9 @@ export function createRig(THREE, opts = {}) {
     const fw = put(CY(0.22, 0.22, 0.05, 'bikeW'), B, 0, 0.36, cz + 0.42); fw.rotation.z = Math.PI / 2;
     put(BX(0.07, 0.6, 0.07, 'bikeF'), B, 0, 0.55, cz + 0.5).rotation.x = -0.25;
     put(BX(0.07, 0.07, 0.62, 'bikeF'), B, 0, 0.42, cz + 0.12).rotation.x = 0.35;
-    EQ.seatPost = put(BX(0.06, 0.7, 0.06, 'bikeF'), B, 0, 0.6, cz - 0.12);
+    EQ.seatPost = put(BX(0.06, 0.7, 0.06, 'bikeF'), B, 0, 0.5, cz - 0.12);
     EQ.seatPost.rotation.x = -0.28;
-    EQ.saddle = put(EL(0.09, 0.03, 0.14, 'pad'), B, 0, 0.95, cz - 0.19);
+    EQ.saddle = put(EL(0.09, 0.03, 0.14, 'pad'), B, 0, 0.88, cz - 0.19);
     put(BX(0.05, 0.05, 0.05, 'steel'), B, 0, 0.73, cz + 0.08);
     put(CY(0.012, 0.012, 0.5, 'steel'), B, 0, 1.12, cz + 0.52).rotation.z = Math.PI / 2;
     [1, -1].forEach((s) => { const g = put(CY(0.02, 0.02, 0.13, 'foam'), B, s * 0.22, 1.12, cz + 0.52); g.rotation.z = Math.PI / 2; });
@@ -309,21 +176,17 @@ export function createRig(THREE, opts = {}) {
 
   // ---- 자세 적용 ----
   const side = (p, k, s) => p[k + (s > 0 ? 'L' : 'R')] ?? p[k];
-  function setGrip(L, gr) {
-    for (const [f1, f2] of L.fingers) { f1.rotation.x = -gr * 1.45; f2.rotation.x = -gr * 1.65; }
-    L.thumb[1].rotation.x = -gr * 0.9;
-  }
   function apply(p) {
     root.position.set(0, 0, 0);
     root.rotation.set(p.rx * R, p.ry * R, 0);
     P.spine.rotation.x = p.sp * R; P.neck.rotation.x = p.nk * 0.5 * R; P.head.rotation.x = p.nk * 0.5 * R;
     [1, -1].forEach((s) => {
       const L = SIDE[s], g = (k) => side(p, k, s);
-      L.gird.position.set(s * 0.2, 0.45 + g('el'), -0.01 + g('pr'));
+      L.gird.position.set(s * D.shX, D.shY + g('el'), D.shZ + g('pr'));
       L.sh.rotation.set(-g('sf') * R, 0, s * g('sa') * R);
       L.el.rotation.set(-g('ef') * R, 0, 0);
       L.wr.rotation.set(-g('wf') * R, g('wy') * R, 0);
-      setGrip(L, g('grip'));
+      GRIP[s] = g('grip');
       L.hip.rotation.set(-g('hf') * R, s * g('hr') * R, s * (g('ha') - g('kv')) * R);
       L.kn.rotation.set(g('kf') * R, 0, s * 2 * g('kv') * R);
       L.an.rotation.set(((g('flat') ? g('hf') - g('kf') - p.rx : 0) + g('pf')) * R, 0, 0);
@@ -357,7 +220,7 @@ export function createRig(THREE, opts = {}) {
   function armIK(s, target, pole, flatHand) {
     const L = SIDE[s];
     L.gird.updateMatrixWorld(true);
-    const { a, perp, bend } = twoBone(L.gird, new V3(), target, 0.33, 0.255, pole);
+    const { a, perp, bend } = twoBone(L.gird, new V3(), target, D.ua, D.fa, pole);
     const yv = a.clone().negate(), zv = perp, xv = new V3().crossVectors(yv, zv);
     L.sh.quaternion.copy(basisQ(xv, yv, zv));
     L.el.rotation.set(-bend, 0, 0);
@@ -370,7 +233,7 @@ export function createRig(THREE, opts = {}) {
   function legIK(s, target, pole, footPitch) {
     const L = SIDE[s];
     root.updateMatrixWorld(true);
-    const { a, perp, bend } = twoBone(root, L.hip.position.clone(), target, 0.43, 0.43, pole);
+    const { a, perp, bend } = twoBone(root, L.hip.position.clone(), target, D.th, D.sh, pole);
     const yv = a.clone().negate(), zv = perp.clone().negate(), xv = new V3().crossVectors(yv, zv);
     L.hip.quaternion.copy(basisQ(xv, yv, zv));
     L.kn.rotation.set(bend, 0, 0);
@@ -391,7 +254,7 @@ export function createRig(THREE, opts = {}) {
   }
 
   const rt = {}; // 자세별 실행 중 계산값 (밀어올리기 손 위치 등)
-  const BALL = new V3(0, -0.0925, 0.12);
+  const BALL = new V3(0, -D.sole, D.ball);
   function bikeFeet(p) {
     const C = EQ.bikeC, r = 0.17;
     EQ.crank.rotation.x = p.crank * R;
@@ -426,11 +289,12 @@ export function createRig(THREE, opts = {}) {
         const fla = side(p, 'fla', s);
         const pole = fla != null ? new V3(s * Math.sin(fla * R), -Math.cos(fla * R), -0.12) : new V3(...(def.pole || [0.45, -1, -0.3])).multiply(new V3(s, 1, 1));
         armIK(s, new V3(...hw), pole, !!(push || def.flatHand));
-        if (push || def.flatHand) setGrip(SIDE[s], 0.08);
+        if (push || def.flatHand) GRIP[s] = 0.08;
       }
     });
     root.updateMatrixWorld(true);
     updateLinks();
+    if (avatar) avatar.update(DRV);
   }
 
   // 자세가 바뀔 때 한 번: 기구 보이기·위치 맞추기
@@ -468,20 +332,27 @@ export function createRig(THREE, opts = {}) {
     }
     if (def.bike) {
       const drop = (def[mode] && def[mode].saddleDrop) || 0;
-      EQ.saddle.position.y = 1.0 - drop;
-      EQ.seatPost.position.y = 0.625 - drop / 2;
+      EQ.saddle.position.y = 0.88 - drop;
+      EQ.seatPost.position.y = 0.5 - drop / 2;
     }
   }
 
-  function highlight(keys, mode) {
-    for (const m of Object.values(JS)) { m.material = MT.joint; m.renderOrder = 0; m.scale.setScalar(1); }
-    for (const k of keys) if (JS[k]) { JS[k].material = MT[mode]; JS[k].renderOrder = 10; JS[k].scale.setScalar(0.8); }
+  // 관절 표시: 강조할 관절은 몸을 뚫고 보이게, 나머지는 뼈대 투시 때만
+  let xray = false, hl = new Set(), hlMode = 'ok';
+  function jointVis() {
+    for (const [k, m] of Object.entries(JS)) {
+      const on = hl.has(k);
+      m.material = on ? MT[hlMode] : MT.joint;
+      m.renderOrder = on ? 10 : 0;
+      m.visible = on || xray;
+    }
   }
-
+  function highlight(keys, mode) { hl = new Set(keys); hlMode = mode; jointVis(); }
   function setXray(on) {
-    MT.joint.color.set(on ? '#4d5a69' : '#cf946c');
-    for (const k of FADE) { const m = MT[k]; m.transparent = on; m.opacity = on ? 0.17 : 1; m.depthWrite = !on; m.needsUpdate = true; }
+    xray = on;
     for (const b of BONES) b.visible = on;
+    if (avatar) avatar.setXray(on);
+    jointVis();
   }
 
   const ang = (a, b, c) => Math.round(wp(a).sub(wp(b)).angleTo(wp(c).sub(wp(b))) / R);
@@ -513,16 +384,27 @@ export function createRig(THREE, opts = {}) {
     }
   }
 
-  // 체형: 75kg = 보통 체형, 90kg = 지금(배 나옴). 관절 위치는 그대로라 자세에는 영향 없음.
-  function setBody(kg) {
-    const f = Math.max(0, Math.min(1.3, ((kg || 90) - 75) / 15));
-    const r = torsoRings(f);
-    reloft(BODY.tor, r);
-    reloft(BODY.top, grow(r.filter((x) => x.y >= -0.04 && x.y <= 0.455), 1.025, 1.035));
-    reloft(BODY.pants, grow(r.filter((x) => x.y <= 0.02), 1.035, 1.045));
-    for (const m of BODY.thick) m.scale.set(0.9 + 0.1 * f, 1, 0.9 + 0.1 * f);
-  }
-  setBody(opts.kg);
+  // ---- 겉모습: 무료 3D 캐릭터 ----
+  const DRV = {
+    pos: (k) => (PT[k] || JS[k]).getWorldPosition(new V3()),
+    quat: (k) => (PT[k] || JS[k]).getWorldQuaternion(new Q()),
+    grip: GRIP,
+  };
+  let avatar = null, kgNow = opts.kg || 90;
+  const ready = opts.avatarBase && THREE.FBXLoader
+    ? import('./avatar.js').then(({ loadAvatar }) => loadAvatar(THREE, { base: opts.avatarBase, scale: AVATAR_SCALE })).then((a) => {
+      avatar = a;
+      scene.add(a.object);
+      a.setBody(kgNow);
+      a.setXray(xray);
+      a.update(DRV);
+      return a;
+    }).catch((e) => { console.warn('캐릭터를 불러오지 못했습니다', e); setXray(true); return null; })
+    : Promise.resolve(null);
+  if (!opts.avatarBase || !THREE.FBXLoader) setXray(true);
 
-  return { scene, root, EQ, pose, setup, highlight, setXray, measure, wp, setBody };
+  // 체형: 마지막으로 기록한 체중
+  function setBody(kg) { kgNow = kg || 90; if (avatar) avatar.setBody(kgNow); }
+
+  return { scene, root, EQ, pose, setup, highlight, setXray, measure, wp, setBody, ready };
 }

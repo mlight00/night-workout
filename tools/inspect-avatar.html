@@ -1,0 +1,26 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>캐릭터 구조</title>
+<pre id="out">loading</pre>
+<script src="../vendor/three.min.js"></script>
+<script src="../vendor/fflate.min.js"></script>
+<script src="../vendor/FBXLoader.js"></script>
+<script>
+  // 캐릭터 FBX의 뼈대·메시·재질을 글로 뽑아 본다 (개발용)
+  new THREE.FBXLoader().load('../assets/avatar/sports_male_04.fbx', (o) => {
+    o.updateMatrixWorld(true);
+    const L = [];
+    const box = new THREE.Box3().setFromObject(o);
+    L.push('box min ' + box.min.toArray().map((v) => v.toFixed(1)) + ' max ' + box.max.toArray().map((v) => v.toFixed(1)));
+    L.push('root scale ' + o.scale.toArray() + ' rot ' + o.rotation.toArray().slice(0, 3).map((v) => v.toFixed(2)));
+    o.traverse((n) => {
+      const p = n.getWorldPosition(new THREE.Vector3());
+      let depth = 0; for (let q = n; q.parent; q = q.parent) depth++;
+      if (n.isBone) L.push(' '.repeat(depth) + 'B ' + n.name + ' @ ' + p.toArray().map((v) => v.toFixed(1)).join(','));
+      else if (n.isMesh) L.push(' '.repeat(depth) + 'M ' + n.name + ' skinned=' + !!n.isSkinnedMesh + ' verts=' + n.geometry.attributes.position.count + ' mat=' + [].concat(n.material).map((m) => m.name + '(' + (m.map ? m.map.name || 'map' : '-') + ')').join('|') + ' groups=' + n.geometry.groups.length);
+      else L.push(' '.repeat(depth) + 'O ' + n.type + ' ' + n.name);
+    });
+    document.getElementById('out').textContent = L.join('\n');
+    document.title = 'done';
+  }, undefined, (e) => { document.getElementById('out').textContent = 'ERR ' + e; });
+</script>

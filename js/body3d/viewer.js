@@ -18,7 +18,8 @@ export function createViewer(container, opts = {}) {
   const cv = renderer.domElement;
   cv.style.cssText = 'display:block;width:100%;height:100%;touch-action:none';
   container.prepend(cv);
-  const rig = createRig(THREE, { dark, shadow: opts.interactive ? 2048 : 1024, kg: opts.kg });
+  const avatarBase = opts.avatar === false ? null : new URL('../../assets/avatar/', import.meta.url).href;
+  const rig = createRig(THREE, { dark, shadow: opts.interactive ? 2048 : 1024, kg: opts.kg, avatarBase });
   const cam = new THREE.PerspectiveCamera(32, 1, 0.05, 60);
 
   let def = null, mode = 'ok', t0 = performance.now(), az = 62, elv = 10, focus = null, ctg = null, cds = 0, raf = 0, label = '', marks = [];
@@ -116,5 +117,7 @@ export function createViewer(container, opts = {}) {
     get callouts() { return def ? def[mode].c || [] : []; },
     hasBad: (id) => !!(POSES[id] && POSES[id].ng),
     canvas: cv,
+    ready: rig.ready,
+    rig,
   };
 }
