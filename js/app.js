@@ -19,8 +19,10 @@ import { renderRecords } from './ui/records.js';
 import { renderEnd } from './ui/end.js';
 import { createViewer } from './body3d/viewer.js';
 
-const SPEED = Math.max(1, +(new URLSearchParams(location.search).get('speed') || 1)); // 확인용 빨리감기
-const clock = () => performance.now() * SPEED;
+// 시계: 빨리감기 배속을 언제 바꿔도 시간이 튀지 않게 이어 붙인다 (체험 모드, ?speed=)
+let speed = Math.max(1, +(new URLSearchParams(location.search).get('speed') || 1)), cBase = 0, cT0 = performance.now();
+const clock = () => cBase + (performance.now() - cT0) * speed;
+function setSpeed(x) { cBase = clock(); cT0 = performance.now(); speed = x; }
 const today = () => ymd(new Date());
 
 const store = createStore(safeStorage());
@@ -35,7 +37,9 @@ let endRec = null;
 function safeStorage() {
   try { return window.localStorage; } catch { return { getItem() { throw new Error('x'); }, setItem() { throw new Error('x'); } }; }
 }
-const save = () => store.save(data);
+let demo = false; // 체험 모드: 기록을 복사본으로만 다루고 저장하지 않는다
+const save = () => (demo ? true : store.save(data));
+const myKg = () => (data.weights.length ? data.weights.at(-1).kg : 90);
 const todayType = () => typeOverride || nextType(data.sessions);
 
 // ---- 음성 ----------------------------------------------------------------
@@ -72,11 +76,11 @@ function refreshHome() {
 onShow('home', refreshHome);
 $('btnSwap').onclick = () => { typeOverride = todayType() === 'strength' ? 'bike' : 'strength'; refreshHome(); };
 $('btnStart').onclick = () => { unlockAudio(); renderCondition(); show('cond'); };
-$('toPosture').onclick = () => { show('posture'); openPosture({ levels: data.state.levels }); };
+$('toPosture').onclick = () => { show('posture'); openPosture({ levels: data.state.levels, kg: myKg() }); };
 $('toRecords').onclick = () => { show('records'); };
 $('toSafety').onclick = () => show('safety');
 onShow('records', () => renderRecords({
-  data, legacy: store.legacyCount(),
+  data, demo, legacy: store.legacyCount(),
   onWeight: (kg) => { data.weights = addWeight(data.weights, today(), kg); save(); show('records', { replace: true }); },
   onExport: exportFile,
   onImport: (text) => {
@@ -135,14 +139,14 @@ function loop() {
   if (!S || !S.active || S.paused) return;
   const t = clock(), gap = t - S.last;
   S.last = t;
-  const catching = gap > 3000 * SPEED; // 화면이 꺼졌다 켜지면 밀린 안내는 건너뛴다
+  const catching = gap > 3000 * speed; // 화면이 꺼졌다 켜지면 밀린 안내는 건너뛴다
   if (catching && window.speechSynthesis) speechSynthesis.cancel();
   handle(S.timer.tick(t), catching);
   if (!S || !S.active) return;
   const st = S.timer.state();
   if (needsCountdown(st.step) && st.remaining <= 3.25 && !S.beeped.has(st.index)) {
     S.beeped.add(st.index);
-    beeper.countdown(st.remaining / SPEED);
+    beeper.countdown(st.remaining / speed);
   }
   render();
 }
@@ -170,7 +174,8 @@ function onStep(step, index) {
   w.className = w.className.replace(/zone-\w+/g, '').trim();
   if (step.kind === 'ride') w.classList.add(`zone-${step.zone}`);
   if (pose) {
-    if (!workViewer) workViewer = createViewer($('w3d'), { zoom: 0.95 });
+    if (!workViewer) workViewer = createViewer($('w3d'), { zoom: 0.95, kg: myKg() });
+    workViewer.setBody(myKg());
     workViewer.show(pose, 'ok');
     workViewer.start();
   } else if (workViewer) workViewer.stop();
@@ -288,9 +293,36 @@ function showEnd() {
     },
     onUp: (id) => { data.state = levelUp(data.state, id); save(); showEnd(); },
     onDown: (id) => { data.state = levelDown(data.state, id); save(); showEnd(); },
-    onPreview: (pose) => { show('posture'); openPosture({ levels: data.state.levels, pose }); },
+    onPreview: (pose) => { show('posture'); openPosture({ levels: data.state.levels, pose, kg: myKg() }); },
   });
 }
+
+// ---- 체험 모드 -----------------------------------------------------------
+function markSpeed() { for (const b of $('demoSpeed').children) b.setAttribute('aria-pressed', +b.dataset.s === speed); }
+$('toDemo').onclick = () => {
+  demo = true;
+  data = JSON.parse(JSON.stringify(data)); // 복사본 — 무엇을 해도 진짜 기록은 그대로
+  document.body.classList.add('demo');
+  $('demoBar').hidden = false;
+  markSpeed();
+  refreshHome();
+};
+$('demoSpeed').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; setSpeed(+b.dataset.s); markSpeed(); };
+$('demoExit').onclick = () => {
+  if (S) {
+    S.active = false; clearInterval(S.tick); S = null;
+    wakeLock.release();
+    if (workViewer) workViewer.stop();
+    if (window.speechSynthesis) speechSynthesis.cancel();
+  }
+  demo = false;
+  data = store.load(); // 진짜 기록으로 돌아간다
+  setSpeed(1);
+  document.body.classList.remove('demo');
+  $('demoBar').hidden = true;
+  closePosture();
+  home();
+};
 
 // ---- 시작 ----------------------------------------------------------------
 wireBackButtons();

@@ -127,3 +127,20 @@ label.check input { width: 1.4rem; height: 1.4rem; accent-color: var(--ok); }
 .hist { list-style: none; display: grid; gap: 0.3rem; font-size: 0.9rem; }
 .hist li { display: flex; justify-content: space-between; gap: 0.5rem; color: var(--sub); }
 .hist li b { color: var(--text); font-weight: 500; }
+
+/* 체험 모드 */
+.demobar { position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+  padding: calc(env(safe-area-inset-top) + 0.35rem) 0.8rem 0.35rem; background: #3a2f10; color: #f3dc9c; font-size: 0.85rem; border-bottom: 1px solid #5a4a1c; }
+.demobar[hidden] { display: none; }
+.demobar .seg button { padding: 0.25rem 0.55rem; font-size: 0.8rem; background: #2a220c; border-color: #5a4a1c; color: #f3dc9c; }
+.demobar .seg button[aria-pressed="true"] { background: #f3dc9c; color: #2a220c; }
+.demobar #demoExit { margin-left: auto; color: #f3dc9c; border-color: #5a4a1c; }
+body.demo .page { padding-top: calc(env(safe-area-inset-top) + 3.4rem); }
+body.demo .wtop { top: calc(env(safe-area-inset-top) + 2.9rem); }
+.demo-btn { display: block; width: 100%; margin-top: 0.8rem; background: transparent; border: 1px dashed #5a4a1c; color: #e6cf8a; font-size: 0.95rem; }
+/* 자세 보기 체형 */
+.kgrow { gap: 0.6rem; font-size: 0.9rem; color: var(--sub); }
+.kgrow input { flex: 1; accent-color: var(--accent); }
+.kgrow span { min-width: 7.5rem; text-align: right; }
+
+body.demo .demo-btn { display: none; }

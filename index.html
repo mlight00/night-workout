@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+  <div id="demoBar" class="demobar" hidden><b>체험 모드</b><span>기록 저장 안 됨</span><span id="demoSpeed" class="seg"><button data-s="1">1배</button><button data-s="10">10배</button><button data-s="30">30배</button></span><button id="demoExit" class="ghost">끝내기</button></div>
   <!-- 홈 -->
   <section id="screen-home" class="screen page is-active">
     <header class="top"><h1>야간 운동</h1><button id="toSafety" class="ghost">멈춰야 하는 신호</button></header>
@@ -21,6 +22,7 @@
     <div id="week" class="week"></div>
     <div id="weighCard"></div>
     <nav class="nav"><button id="toPosture">자세 보기</button><button id="toRecords">기록·그래프</button></nav>
+    <button id="toDemo" class="demo-btn">체험 모드 — 기록 저장 없이 전체 둘러보기</button>
   </section>
 
   <!-- 컨디션 -->
@@ -62,6 +64,7 @@
     <div class="row"><span id="pModes" class="seg"></span><span class="grow"></span><button id="pXray" class="ghost">뼈대 투시</button></div>
     <div id="p3d" class="p3d"><span class="hint">드래그해서 돌려보기</span></div>
     <div class="row"><span id="pViews" class="seg"></span></div>
+    <div class="row kgrow"><label for="pKg">체형</label><input id="pKg" type="range" min="70" max="95" step="1"><span id="pKgLbl"></span></div>
     <p id="pLabel" class="plabel"></p>
     <ol id="pList" class="plist"></ol>
   </section>

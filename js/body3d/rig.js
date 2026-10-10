@@ -8,7 +8,7 @@
 //   hf 고관절 굽힘 · ha 고관절 벌림 · hr 고관절 바깥 회전 · kv 무릎 안쪽 모임 · kf 무릎 굽힘 · pf 발목(+는 발끝 내림) · flat 발바닥 수평
 //   hw / ak : 손목·발목 목표 위치 [x,y,z] (있으면 IK로 맞춤)
 
-export const DEF = { rx: 0, ry: 0, sp: 0, nk: 0, el: 0, pr: 0, sf: 2, sa: 6, ef: 8, wf: 0, hf: 0, ha: 4, hr: 6, kv: 0, kf: 2, pf: 0, flat: 0, crank: 0 };
+export const DEF = { grip: 0.85, wy: 0, rx: 0, ry: 0, sp: 0, nk: 0, el: 0, pr: 0, sf: 2, sa: 6, ef: 8, wf: 0, hf: 0, ha: 4, hr: 6, kv: 0, kf: 2, pf: 0, flat: 0, crank: 0 };
 const R = Math.PI / 180;
 
 export function interp(fr, t, lin) {
@@ -43,46 +43,125 @@ export function createRig(THREE, opts = {}) {
 
   const MT = {};
   const mk = (n, c, o) => (MT[n] = new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.7, metalness: 0 }, o || {})));
-  mk('skin', '#d69c76', { roughness: 0.6 }); mk('joint', '#4d5a69', { roughness: 0.35, metalness: 0.15 });
-  mk('ok', '#1D9E75', { emissive: '#0b5a45', emissiveIntensity: 0.45, roughness: 0.35 }); mk('ng', '#E24B4A', { emissive: '#7a1d1d', emissiveIntensity: 0.45, roughness: 0.35 });
-  mk('shorts', '#343941', { roughness: 0.92 }); mk('shoe', '#eeeeeb'); mk('sole', '#585752'); mk('hair', '#262624', { roughness: 0.9 }); mk('eye', '#1a1a18');
+  mk('skin', '#d9a07a', { roughness: 0.55 }); mk('joint', '#cf946c', { roughness: 0.55 });
+  mk('ok', '#1D9E75', { emissive: '#0b5a45', emissiveIntensity: 0.5, roughness: 0.35, transparent: true, opacity: 0.88, depthTest: false });
+  mk('ng', '#E24B4A', { emissive: '#7a1d1d', emissiveIntensity: 0.5, roughness: 0.35, transparent: true, opacity: 0.88, depthTest: false });
+  mk('shirt', '#2b6a88', { roughness: 0.85 }); mk('shorts', '#2f343b', { roughness: 0.92 }); mk('sock', '#e6e6e2', { roughness: 0.9 });
+  mk('shoe', '#f1f1ee', { roughness: 0.55 }); mk('sole', '#55544f', { roughness: 0.8 }); mk('lace', '#c9c9c4');
+  mk('hair', '#262624', { roughness: 0.9 }); mk('eye', '#1a1a18', { roughness: 0.3 }); mk('sclera', '#f2efe9', { roughness: 0.4 }); mk('lip', '#a8645a', { roughness: 0.6 });
   mk('bone', '#eee5d0', { roughness: 0.5 }); mk('boneD', '#eee5d0', { roughness: 0.5, side: THREE.DoubleSide });
   mk('steel', '#4a535d', { roughness: 0.4, metalness: 0.55 }); mk('pad', '#25282d', { roughness: 0.85 }); mk('foam', '#18191b', { roughness: 0.95 });
   mk('chair', '#9b7653'); mk('mat', '#4f7364', { roughness: 0.95 }); mk('stepm', '#3d434b', { roughness: 0.8 });
   mk('bikeF', '#2f3438', { roughness: 0.5, metalness: 0.4 }); mk('bikeW', '#7b848d', { roughness: 0.35, metalness: 0.7 }); mk('screen', '#1D9E75', { emissive: '#0b5a45', emissiveIntensity: 0.6 });
-  const FADE = ['skin', 'shorts', 'shoe', 'sole', 'hair', 'eye'];
+  const FADE = ['skin', 'shirt', 'shorts', 'sock', 'shoe', 'sole', 'lace', 'hair', 'eye', 'sclera', 'lip'];
 
   const M = (g, m, sh = 1) => { const o = new THREE.Mesh(g, MT[m]); o.castShadow = !!sh; o.receiveShadow = true; return o; };
   const G = (p, x = 0, y = 0, z = 0) => { const g = new THREE.Group(); g.position.set(x, y, z); p && p.add(g); return g; };
   const put = (o, p, x, y, z) => { o.position.set(x, y, z); p.add(o); return o; };
-  const lat = (pts) => new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), 30);
   const EL = (rx, ry, rz, m) => { const o = M(new THREE.SphereGeometry(1, 30, 20), m); o.scale.set(rx, ry, rz); return o; };
   const SP = (r, m) => M(new THREE.SphereGeometry(r, 24, 16), m);
   const CY = (a, b, h, m) => M(new THREE.CylinderGeometry(a, b, h, 18), m);
   const BX = (w, h, d, m) => M(new THREE.BoxGeometry(w, h, d), m);
+  // 캡슐(손가락 마디): y=0에서 -len까지
+  function capPts(r, len) {
+    const pts = [];
+    for (let i = 0; i <= 6; i++) { const a = (i / 6) * (Math.PI / 2); pts.push(new THREE.Vector2(Math.sin(a) * r, -len - Math.cos(a) * r)); }
+    for (let i = 6; i >= 0; i--) { const a = (i / 6) * (Math.PI / 2); pts.push(new THREE.Vector2(Math.sin(a) * r, Math.cos(a) * r)); }
+    return pts;
+  }
   const BONES = [], JS = {}, PT = {}, SIDE = {}, LINKS = [];
   const bone = (o) => { BONES.push(o); o.visible = false; o.castShadow = false; return o; };
   const pnt = (n, p, x, y, z) => (PT[n] = G(p, x, y, z));
   const link = (a, b, r1, r2, m, isBone) => { const o = M(new THREE.CylinderGeometry(r2, r1, 1, 14), m); scene.add(o); LINKS.push({ o, a, b }); if (isBone) bone(o); return o; };
 
-  // ---- 사람 (176cm · 90kg 비율) ----
-  const UA = [[0, -0.335], [0.04, -0.325], [0.045, -0.3], [0.051, -0.24], [0.057, -0.16], [0.061, -0.08], [0.062, -0.02], [0.05, 0.02], [0, 0.035]];
-  const FA = [[0, -0.262], [0.028, -0.255], [0.031, -0.22], [0.038, -0.15], [0.046, -0.07], [0.046, -0.02], [0.04, 0.005], [0, 0.015]];
-  const TH = [[0, -0.44], [0.055, -0.43], [0.06, -0.4], [0.07, -0.32], [0.083, -0.2], [0.091, -0.1], [0.093, -0.03], [0.086, 0.01], [0, 0.03]];
-  const SH = [[0, -0.435], [0.03, -0.43], [0.033, -0.39], [0.04, -0.3], [0.05, -0.2], [0.054, -0.12], [0.05, -0.04], [0.046, 0], [0, 0.01]];
-  const TOR = [[0, -0.2], [0.14, -0.19], [0.172, -0.13], [0.176, -0.04], [0.17, 0.06], [0.175, 0.16], [0.19, 0.26], [0.198, 0.34], [0.195, 0.4], [0.17, 0.45], [0.115, 0.49], [0.055, 0.51], [0, 0.515]];
+  // ---- 단면을 이어 붙인 몸(로프트): 고리마다 높이 y, 반폭 w, 앞 깊이 f, 뒤 깊이 b ----
+  const SEG = 40;
+  function loftFill(rings, n, arr) {
+    let o = 0;
+    for (const r of rings) {
+      for (let j = 0; j < SEG; j++) {
+        const t = (j / SEG) * Math.PI * 2, c = Math.cos(t), s = Math.sin(t);
+        const pc = Math.sign(c) * Math.abs(c) ** (2 / n), ps = Math.sign(s) * Math.abs(s) ** (2 / n);
+        arr[o++] = (r.x || 0) + r.w * pc; arr[o++] = r.y; arr[o++] = (r.z || 0) + (ps >= 0 ? r.f : r.b) * ps;
+      }
+    }
+    const a = rings[0], z = rings.at(-1);
+    arr[o++] = a.x || 0; arr[o++] = a.y; arr[o++] = a.z || 0;
+    arr[o++] = z.x || 0; arr[o++] = z.y; arr[o++] = z.z || 0;
+  }
+  function loft(rings, n = 2.2) {
+    const R = rings.length, pos = new Float32Array((R * SEG + 2) * 3), idx = [];
+    loftFill(rings, n, pos);
+    for (let i = 0; i < R - 1; i++) for (let j = 0; j < SEG; j++) {
+      const a = i * SEG + j, b = i * SEG + ((j + 1) % SEG), c = (i + 1) * SEG + ((j + 1) % SEG), d = (i + 1) * SEG + j;
+      idx.push(a, d, b, b, d, c);
+    }
+    const c0 = R * SEG, c1 = R * SEG + 1, top = (R - 1) * SEG;
+    for (let j = 0; j < SEG; j++) { idx.push(c0, j, (j + 1) % SEG); idx.push(c1, top + ((j + 1) % SEG), top + j); }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    g.userData.n = n;
+    return g;
+  }
+  function reloft(g, rings) { loftFill(rings, g.userData.n, g.attributes.position.array); g.attributes.position.needsUpdate = true; g.computeVertexNormals(); }
+  const grow = (rings, k, kz = k) => rings.map((r) => ({ ...r, w: r.w * k, f: r.f * kz, b: r.b * kz }));
+
+  // 몸통: f = 0이면 75kg(보통), 1이면 90kg(지금, 배 나옴)
+  function torsoRings(f) {
+    const L = (a, b) => a + (b - a) * f;
+    return [
+      { y: -0.215, w: 0.06, f: 0.04, b: 0.05 },
+      { y: -0.2, w: 0.13, f: 0.08, b: 0.095 },
+      { y: -0.15, w: 0.172, f: 0.105, b: 0.128 },
+      { y: -0.08, w: L(0.172, 0.184), f: L(0.1, 0.12), b: L(0.12, 0.132) },
+      { y: 0, w: L(0.156, 0.176), f: L(0.09, 0.128), b: 0.1 },
+      { y: 0.08, w: L(0.146, 0.173), f: L(0.088, 0.148), b: L(0.088, 0.097) },
+      { y: 0.16, w: L(0.152, 0.176), f: L(0.094, 0.143), b: L(0.093, 0.1) },
+      { y: 0.24, w: L(0.17, 0.188), f: L(0.106, 0.128), b: 0.107 },
+      { y: 0.31, w: 0.192, f: 0.118, b: 0.114 },
+      { y: 0.37, w: 0.2, f: 0.121, b: 0.117 },
+      { y: 0.42, w: 0.197, f: 0.104, b: 0.11 },
+      { y: 0.455, w: 0.168, f: 0.083, b: 0.094 },
+      { y: 0.48, w: 0.11, f: 0.064, b: 0.074 },
+      { y: 0.505, w: 0.066, f: 0.05, b: 0.055 },
+      { y: 0.52, w: 0.055, f: 0.045, b: 0.05 },
+    ];
+  }
+  const UA = [ // 위팔: 어깨세모근 · 이두 · 삼두
+    { y: -0.345, w: 0.034, f: 0.03, b: 0.034 }, { y: -0.33, w: 0.041, f: 0.036, b: 0.04 }, { y: -0.3, w: 0.044, f: 0.042, b: 0.045 },
+    { y: -0.24, w: 0.046, f: 0.05, b: 0.048 }, { y: -0.18, w: 0.048, f: 0.055, b: 0.052 }, { y: -0.12, w: 0.052, f: 0.052, b: 0.055 },
+    { y: -0.06, w: 0.06, f: 0.055, b: 0.058, x: 0.004 }, { y: 0, w: 0.066, f: 0.06, b: 0.062, x: 0.006 }, { y: 0.035, w: 0.058, f: 0.052, b: 0.054, x: 0.004 }, { y: 0.06, w: 0.03, f: 0.03, b: 0.03 },
+  ];
+  const FA = [ // 아래팔: 팔꿈치 쪽이 굵고 손목 쪽이 납작
+    { y: -0.268, w: 0.022, f: 0.016, b: 0.016 }, { y: -0.255, w: 0.029, f: 0.02, b: 0.021 }, { y: -0.22, w: 0.032, f: 0.024, b: 0.025 },
+    { y: -0.16, w: 0.037, f: 0.031, b: 0.031 }, { y: -0.09, w: 0.045, f: 0.041, b: 0.039 }, { y: -0.03, w: 0.049, f: 0.044, b: 0.045 },
+    { y: 0.01, w: 0.044, f: 0.038, b: 0.044 }, { y: 0.03, w: 0.026, f: 0.024, b: 0.026 },
+  ];
+  const TH = [ // 허벅지: 앞(넙다리네갈래) · 뒤(햄스트링)
+    { y: -0.455, w: 0.04, f: 0.04, b: 0.04 }, { y: -0.44, w: 0.052, f: 0.05, b: 0.05 }, { y: -0.41, w: 0.058, f: 0.063, b: 0.053 },
+    { y: -0.34, w: 0.066, f: 0.072, b: 0.063 }, { y: -0.25, w: 0.078, f: 0.083, b: 0.076 }, { y: -0.15, w: 0.088, f: 0.09, b: 0.086 },
+    { y: -0.05, w: 0.095, f: 0.094, b: 0.1 }, { y: 0.03, w: 0.09, f: 0.085, b: 0.096 }, { y: 0.07, w: 0.05, f: 0.05, b: 0.05 },
+  ];
+  const SN = [ // 정강이 + 종아리 볼록
+    { y: -0.44, w: 0.026, f: 0.026, b: 0.026 }, { y: -0.42, w: 0.03, f: 0.03, b: 0.031 }, { y: -0.38, w: 0.031, f: 0.03, b: 0.032 },
+    { y: -0.3, w: 0.037, f: 0.034, b: 0.043 }, { y: -0.22, w: 0.046, f: 0.038, b: 0.058 }, { y: -0.13, w: 0.054, f: 0.042, b: 0.075 },
+    { y: -0.06, w: 0.052, f: 0.045, b: 0.07 }, { y: 0.0, w: 0.05, f: 0.046, b: 0.05 }, { y: 0.02, w: 0.03, f: 0.03, b: 0.03 },
+  ];
+
   const root = G(scene);
   root.rotation.order = 'YXZ';
+  const BODY = { thick: [] }; // 체중 따라 바뀌는 부분
   const P = { root };
   {
-    const sho = M(lat([[0, -0.12], [0.13, -0.11], [0.18, -0.05], [0.19, 0.03], [0.186, 0.1], [0.18, 0.15], [0, 0.16]]), 'shorts');
-    sho.scale.z = 0.7; root.add(sho);
-    [1, -1].forEach((s) => put(EL(0.088, 0.09, 0.07, 'shorts'), root, s * 0.075, -0.03, -0.05));
+    const sp = (P.spine = G(root, 0, 0.06, 0));
+    const r0 = torsoRings(1);
+    BODY.tor = loft(r0, 2.3); sp.add(M(BODY.tor, 'skin'));
+    BODY.top = loft(grow(r0.filter((r) => r.y >= -0.04 && r.y <= 0.455), 1.025, 1.035), 2.3); sp.add(M(BODY.top, 'shirt'));
+    BODY.pants = loft(grow(r0.filter((r) => r.y <= 0.02), 1.035, 1.045), 2.3); sp.add(M(BODY.pants, 'shorts'));
     const pel = bone(put(M(new THREE.TorusGeometry(1, 0.09, 8, 30), 'bone'), root, 0, 0.02, 0));
     pel.scale.set(0.13, 0.09, 0.09); pel.rotation.x = Math.PI / 2;
-    const sp = (P.spine = G(root, 0, 0.06, 0));
-    const tor = M(lat(TOR), 'skin'); tor.scale.z = 0.64; sp.add(tor);
-    put(EL(0.158, 0.15, 0.118, 'skin'), sp, 0, 0.12, 0.025);
     bone(put(CY(0.015, 0.015, 0.6, 'bone'), sp, 0, 0.21, -0.08));
     for (let y = -0.08; y < 0.5; y += 0.042) bone(put(BX(0.042, 0.018, 0.032, 'bone'), sp, 0, y, -0.085));
     [0.2, 0.245, 0.29, 0.335, 0.38, 0.42].forEach((y, i) => {
@@ -90,22 +169,31 @@ export function createRig(THREE, opts = {}) {
       const r = [0.158, 0.17, 0.178, 0.18, 0.172, 0.15][i];
       t.rotation.x = Math.PI / 2; t.scale.set(r, r * 0.68, r * 0.68);
     });
-    pnt('c7', sp, 0, 0.47, -0.09); pnt('navel', sp, 0, 0.1, 0.17); pnt('back', sp, 0, 0.28, -0.135); pnt('lback', sp, 0, 0.05, -0.125); pnt('chest', sp, 0, 0.36, 0.13);
+    pnt('c7', sp, 0, 0.47, -0.08); pnt('navel', sp, 0, 0.1, 0.15); pnt('back', sp, 0, 0.28, -0.11); pnt('lback', sp, 0, 0.05, -0.1); pnt('chest', sp, 0, 0.36, 0.125);
+
+    // 목 · 머리
     const nk = (P.neck = G(sp, 0, 0.47, -0.015));
-    put(CY(0.054, 0.06, 0.13, 'skin'), nk, 0, 0.045, 0);
+    nk.add(M(loft([{ y: -0.03, w: 0.06, f: 0.055, b: 0.062 }, { y: 0.03, w: 0.054, f: 0.05, b: 0.055 }, { y: 0.09, w: 0.05, f: 0.046, b: 0.05 }, { y: 0.12, w: 0.03, f: 0.03, b: 0.03 }], 2.1), 'skin'));
     bone(put(CY(0.013, 0.013, 0.1, 'bone'), nk, 0, 0.04, -0.02));
     const hd = (P.head = G(nk, 0, 0.085, 0));
     const hc = G(hd, 0, 0.1, 0.012); PT.head = hc;
-    hc.add(EL(0.078, 0.112, 0.098, 'skin'));
-    put(EL(0.062, 0.05, 0.07, 'skin'), hc, 0, -0.065, 0.03);
-    put(EL(0.014, 0.02, 0.022, 'skin'), hc, 0, -0.015, 0.1);
-    const hr = put(M(new THREE.SphereGeometry(1, 30, 14, 0, Math.PI * 2, 0, Math.PI * 0.52), 'hair'), hc, 0, 0.004, -0.006);
-    hr.scale.set(0.082, 0.117, 0.102); hr.rotation.x = -0.32;
+    put(EL(0.08, 0.1, 0.097, 'skin'), hc, 0, 0.012, -0.006);           // 머리뼈
+    put(EL(0.067, 0.072, 0.075, 'skin'), hc, 0, -0.038, 0.02);         // 얼굴 아래쪽
+    put(EL(0.04, 0.028, 0.034, 'skin'), hc, 0, -0.088, 0.052);         // 턱
+    const nose = put(CY(0.005, 0.017, 0.042, 'skin'), hc, 0, -0.016, 0.097); nose.rotation.x = -1.35;
+    put(SP(0.012, 'skin'), hc, 0, -0.034, 0.104);
+    put(BX(0.03, 0.004, 0.006, 'lip'), hc, 0, -0.063, 0.082);
+    const hr = put(M(new THREE.SphereGeometry(1, 32, 14, 0, Math.PI * 2, 0, Math.PI * 0.52), 'hair'), hc, 0, 0.016, -0.012);
+    hr.scale.set(0.085, 0.106, 0.104); hr.rotation.x = -0.36;
     [1, -1].forEach((s) => {
-      put(SP(0.0085, 'eye'), hc, s * 0.03, 0.005, 0.088);
-      const e = put(EL(0.012, 0.027, 0.017, 'skin'), hc, s * 0.077, -0.01, -0.005);
+      put(EL(0.011, 0.008, 0.006, 'sclera'), hc, s * 0.03, 0.006, 0.084);
+      put(SP(0.0055, 'eye'), hc, s * 0.03, 0.006, 0.089);
+      const br = put(BX(0.03, 0.006, 0.01, 'hair'), hc, s * 0.031, 0.026, 0.087); br.rotation.z = -s * 0.12;
+      put(BX(0.008, 0.03, 0.012, 'hair'), hc, s * 0.078, 0.0, -0.002);  // 구레나룻
+      const e = put(EL(0.009, 0.023, 0.015, 'skin'), hc, s * 0.079, -0.01, -0.012); e.rotation.z = s * 0.15;
       if (s === 1) PT.ear = e;
     });
+
     [1, -1].forEach((s) => {
       const L = (SIDE[s] = {});
       const gd = (L.gird = G(sp, s * 0.2, 0.45, -0.01));
@@ -113,21 +201,50 @@ export function createRig(THREE, opts = {}) {
       const sc = new THREE.Shape(); sc.moveTo(0, 0); sc.lineTo(-0.11, -0.02); sc.lineTo(-0.03, -0.17); sc.closePath();
       const scp = bone(put(M(new THREE.ShapeGeometry(sc), 'boneD'), gd, -s * 0.035, -0.01, -0.12)); scp.scale.x = s;
       link(pnt('st' + s, sp, s * 0.02, 0.46, 0.085), ac, 0.011, 0.011, 'bone', 1);
-      link(pnt('tr' + s, sp, s * 0.03, 0.48, -0.04), ac, 0.05, 0.035, 'skin');
-      const sh = (L.sh = G(gd)); JS['sh' + s] = put(SP(0.06, 'joint'), sh, 0, 0, 0); sh.add(M(lat(UA), 'skin'));
+      link(pnt('tr' + s, sp, s * 0.03, 0.485, -0.03), ac, 0.052, 0.04, 'skin');
+
+      // 팔
+      const sh = (L.sh = G(gd)); JS['sh' + s] = put(SP(0.058, 'joint'), sh, 0, 0, 0);
+      const ua = M(loft(UA.map((r) => ({ ...r, x: (r.x || 0) * s })), 2.1), 'skin'); sh.add(ua); BODY.thick.push(ua);
       bone(put(CY(0.013, 0.012, 0.3, 'bone'), sh, 0, -0.165, 0));
-      const el = (L.el = G(sh, 0, -0.33, 0)); JS['el' + s] = put(SP(0.045, 'joint'), el, 0, 0, 0); el.add(M(lat(FA), 'skin'));
+      const el = (L.el = G(sh, 0, -0.33, 0)); JS['el' + s] = put(SP(0.04, 'joint'), el, 0, 0, -0.008);
+      el.add(M(loft(FA, 2.3), 'skin'));
       [1, -1].forEach((k) => bone(put(CY(0.008, 0.007, 0.23, 'bone'), el, k * 0.012, -0.13, 0)));
-      const wr = (L.wr = G(el, 0, -0.255, 0)); JS['wr' + s] = put(SP(0.032, 'joint'), wr, 0, 0, 0);
-      put(EL(0.044, 0.07, 0.027, 'skin'), wr, 0, -0.07, 0); put(EL(0.015, 0.035, 0.015, 'skin'), wr, s * 0.036, -0.035, 0.016);
+      const wr = (L.wr = G(el, 0, -0.255, 0)); JS['wr' + s] = put(SP(0.028, 'joint'), wr, 0, 0, 0);
+      // 손: 손바닥 + 손가락 4개(2마디) + 엄지 — grip 값으로 쥔다
+      put(EL(0.04, 0.052, 0.018, 'skin'), wr, 0, -0.052, 0.002);
+      L.fingers = [];
+      for (let k = 0; k < 4; k++) {
+        const len = [0.04, 0.045, 0.043, 0.035][k];
+        const f1 = G(wr, s * (0.028 - k * 0.0185), -0.098, 0.004);
+        f1.add(M(new THREE.LatheGeometry(capPts(0.0095, len), 12), 'skin'));
+        const f2 = G(f1, 0, -len, 0);
+        f2.add(M(new THREE.LatheGeometry(capPts(0.0088, len * 0.85), 12), 'skin'));
+        L.fingers.push([f1, f2]);
+      }
+      const th1 = G(wr, s * 0.034, -0.03, 0.014); th1.rotation.set(-0.35, 0, s * 0.55);
+      th1.add(M(new THREE.LatheGeometry(capPts(0.011, 0.034), 12), 'skin'));
+      const th2 = G(th1, 0, -0.034, 0); th2.add(M(new THREE.LatheGeometry(capPts(0.0098, 0.028), 12), 'skin'));
+      L.thumb = [th1, th2];
       pnt('gp' + s, wr, 0, -0.07, 0); PT['sh' + s] = sh; PT['el' + s] = el; PT['wr' + s] = wr;
-      const hp = (L.hip = G(root, s * 0.095, 0, 0)); JS['hp' + s] = put(SP(0.072, 'joint'), hp, 0, 0, 0); hp.add(M(lat(TH), 'skin'));
-      hp.add(M(lat([[0, -0.2], [0.098, -0.195], [0.101, -0.1], [0.099, 0], [0, 0.04]]), 'shorts'));
+
+      // 다리
+      const hp = (L.hip = G(root, s * 0.095, 0, 0)); JS['hp' + s] = put(SP(0.07, 'joint'), hp, 0, 0, 0);
+      const th = M(loft(TH, 2.2), 'skin'); hp.add(th); BODY.thick.push(th);
+      const pl = M(loft(grow(TH.filter((r) => r.y >= -0.2), 1.07), 2.2), 'shorts'); hp.add(pl); BODY.thick.push(pl);
       bone(put(CY(0.016, 0.014, 0.4, 'bone'), hp, 0, -0.21, 0));
-      const kn = (L.kn = G(hp, 0, -0.43, 0)); JS['kn' + s] = put(SP(0.055, 'joint'), kn, 0, 0, 0.014); kn.add(M(lat(SH), 'skin'));
-      put(EL(0.046, 0.1, 0.046, 'skin'), kn, 0, -0.14, -0.026); bone(put(CY(0.014, 0.012, 0.4, 'bone'), kn, 0, -0.215, 0));
-      const an = (L.an = G(kn, 0, -0.43, 0)); JS['an' + s] = put(SP(0.036, 'joint'), an, 0, 0, 0);
-      put(EL(0.05, 0.045, 0.135, 'shoe'), an, 0, -0.045, 0.05); put(BX(0.1, 0.016, 0.27, 'sole'), an, 0, -0.0845, 0.05);
+      const kn = (L.kn = G(hp, 0, -0.43, 0)); JS['kn' + s] = put(SP(0.046, 'joint'), kn, 0, 0, 0.022);
+      kn.add(M(loft(SN, 2.2), 'skin')); bone(put(CY(0.014, 0.012, 0.4, 'bone'), kn, 0, -0.215, 0));
+      const an = (L.an = G(kn, 0, -0.43, 0)); JS['an' + s] = put(SP(0.03, 'joint'), an, 0, 0, 0);
+      // 양말 + 운동화(갑피 · 앞코 · 뒤축 · 끈 · 밑창)
+      put(CY(0.036, 0.038, 0.05, 'sock'), an, 0, 0.005, 0);
+      put(EL(0.048, 0.041, 0.122, 'shoe'), an, 0, -0.048, 0.045);
+      put(EL(0.046, 0.032, 0.062, 'shoe'), an, 0, -0.062, 0.13);
+      put(EL(0.043, 0.042, 0.05, 'shoe'), an, 0, -0.05, -0.052);
+      const lc = put(BX(0.03, 0.006, 0.085, 'lace'), an, 0, -0.012, 0.075); lc.rotation.x = -0.33;
+      put(BX(0.098, 0.017, 0.24, 'sole'), an, 0, -0.084, 0.03);
+      put(EL(0.049, 0.0085, 0.06, 'sole'), an, 0, -0.084, 0.15);
+      put(EL(0.047, 0.0085, 0.04, 'sole'), an, 0, -0.084, -0.085);
       pnt('ball' + s, an, 0, -0.0925, 0.12); pnt('heel' + s, an, 0, -0.0925, -0.075); pnt('toe' + s, an, 0, -0.075, 0.185);
       PT['hip' + s] = hp; PT['kn' + s] = kn; PT['an' + s] = an;
     });
@@ -192,6 +309,10 @@ export function createRig(THREE, opts = {}) {
 
   // ---- 자세 적용 ----
   const side = (p, k, s) => p[k + (s > 0 ? 'L' : 'R')] ?? p[k];
+  function setGrip(L, gr) {
+    for (const [f1, f2] of L.fingers) { f1.rotation.x = -gr * 1.45; f2.rotation.x = -gr * 1.65; }
+    L.thumb[1].rotation.x = -gr * 0.9;
+  }
   function apply(p) {
     root.position.set(0, 0, 0);
     root.rotation.set(p.rx * R, p.ry * R, 0);
@@ -201,7 +322,8 @@ export function createRig(THREE, opts = {}) {
       L.gird.position.set(s * 0.2, 0.45 + g('el'), -0.01 + g('pr'));
       L.sh.rotation.set(-g('sf') * R, 0, s * g('sa') * R);
       L.el.rotation.set(-g('ef') * R, 0, 0);
-      L.wr.rotation.set(-g('wf') * R, 0, 0);
+      L.wr.rotation.set(-g('wf') * R, g('wy') * R, 0);
+      setGrip(L, g('grip'));
       L.hip.rotation.set(-g('hf') * R, s * g('hr') * R, s * (g('ha') - g('kv')) * R);
       L.kn.rotation.set(g('kf') * R, 0, s * 2 * g('kv') * R);
       L.an.rotation.set(((g('flat') ? g('hf') - g('kf') - p.rx : 0) + g('pf')) * R, 0, 0);
@@ -304,6 +426,7 @@ export function createRig(THREE, opts = {}) {
         const fla = side(p, 'fla', s);
         const pole = fla != null ? new V3(s * Math.sin(fla * R), -Math.cos(fla * R), -0.12) : new V3(...(def.pole || [0.45, -1, -0.3])).multiply(new V3(s, 1, 1));
         armIK(s, new V3(...hw), pole, !!(push || def.flatHand));
+        if (push || def.flatHand) setGrip(SIDE[s], 0.08);
       }
     });
     root.updateMatrixWorld(true);
@@ -351,11 +474,12 @@ export function createRig(THREE, opts = {}) {
   }
 
   function highlight(keys, mode) {
-    for (const m of Object.values(JS)) m.material = MT.joint;
-    for (const k of keys) if (JS[k]) JS[k].material = MT[mode];
+    for (const m of Object.values(JS)) { m.material = MT.joint; m.renderOrder = 0; m.scale.setScalar(1); }
+    for (const k of keys) if (JS[k]) { JS[k].material = MT[mode]; JS[k].renderOrder = 10; JS[k].scale.setScalar(0.8); }
   }
 
   function setXray(on) {
+    MT.joint.color.set(on ? '#4d5a69' : '#cf946c');
     for (const k of FADE) { const m = MT[k]; m.transparent = on; m.opacity = on ? 0.17 : 1; m.depthWrite = !on; m.needsUpdate = true; }
     for (const b of BONES) b.visible = on;
   }
@@ -389,5 +513,16 @@ export function createRig(THREE, opts = {}) {
     }
   }
 
-  return { scene, root, EQ, pose, setup, highlight, setXray, measure, wp };
+  // 체형: 75kg = 보통 체형, 90kg = 지금(배 나옴). 관절 위치는 그대로라 자세에는 영향 없음.
+  function setBody(kg) {
+    const f = Math.max(0, Math.min(1.3, ((kg || 90) - 75) / 15));
+    const r = torsoRings(f);
+    reloft(BODY.tor, r);
+    reloft(BODY.top, grow(r.filter((x) => x.y >= -0.04 && x.y <= 0.455), 1.025, 1.035));
+    reloft(BODY.pants, grow(r.filter((x) => x.y <= 0.02), 1.035, 1.045));
+    for (const m of BODY.thick) m.scale.set(0.9 + 0.1 * f, 1, 0.9 + 0.1 * f);
+  }
+  setBody(opts.kg);
+
+  return { scene, root, EQ, pose, setup, highlight, setXray, measure, wp, setBody };
 }

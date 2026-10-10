@@ -13,7 +13,7 @@ const GROUPS = [
 const VIEWS = [[62, '비스듬히'], [90, '측면'], [0, '정면'], [180, '뒤']];
 const OKC = '#1D9E75', NGC = '#E24B4A';
 
-let viewer = null, levels = null;
+let viewer = null, levels = null, myKg = 90;
 const cur = { group: 'hang', pose: 'deadhang', mode: 'ok', xray: false, view: 62, focus: null };
 
 function currentPoseOf(groupId) {
@@ -68,11 +68,13 @@ function wire() {
     viewer.setFocus(cur.focus);
     for (const x of $('pList').children) x.setAttribute('aria-pressed', x === li && !!cur.focus);
   };
+  $('pKg').oninput = () => setKg(+$('pKg').value);
   $('pList').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.target.click(); } };
 }
 
-export function openPosture({ levels: lv, pose, mode } = {}) {
+export function openPosture({ levels: lv, pose, mode, kg } = {}) {
   levels = lv;
+  myKg = Math.round(kg || 90);
   if (!viewer) {
     let last = 0;
     viewer = createViewer($('p3d'), {
@@ -91,7 +93,14 @@ export function openPosture({ levels: lv, pose, mode } = {}) {
   }
   cur.view = POSES[cur.pose].view ?? 62;
   render();
+  setKg(myKg);
   viewer.start();
+}
+
+function setKg(v) {
+  $('pKg').value = v;
+  viewer.setBody(v);
+  $('pKgLbl').textContent = v === myKg ? `${v}kg · 지금 체중` : `${v}kg · ${v < myKg ? `${myKg - v}kg 빼면` : '미리 보기'}`;
 }
 
 export function closePosture() {

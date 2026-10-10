@@ -18,7 +18,7 @@ export function createViewer(container, opts = {}) {
   const cv = renderer.domElement;
   cv.style.cssText = 'display:block;width:100%;height:100%;touch-action:none';
   container.prepend(cv);
-  const rig = createRig(THREE, { dark, shadow: opts.interactive ? 2048 : 1024 });
+  const rig = createRig(THREE, { dark, shadow: opts.interactive ? 2048 : 1024, kg: opts.kg });
   const cam = new THREE.PerspectiveCamera(32, 1, 0.05, 60);
 
   let def = null, mode = 'ok', t0 = performance.now(), az = 62, elv = 10, focus = null, ctg = null, cds = 0, raf = 0, label = '', marks = [];
@@ -42,6 +42,7 @@ export function createViewer(container, opts = {}) {
     elv = 10;
     focus = null;
     ctg = null;
+    label = '';
     t0 = performance.now();
     marks.forEach((e) => e.remove());
     marks = [];
@@ -109,6 +110,7 @@ export function createViewer(container, opts = {}) {
     renderAt(t) { frame(performance.now(), t); },
     setView(v) { az = v; elv = v === 62 ? 10 : 6; },
     setXray: (on) => rig.setXray(on),
+    setBody: (kg) => rig.setBody(kg),
     setFocus(k) { focus = k; },
     get label() { return label; },
     get callouts() { return def ? def[mode].c || [] : []; },

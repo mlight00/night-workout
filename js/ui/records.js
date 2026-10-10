@@ -11,7 +11,7 @@ const TYPE = { strength: '근력', bike: '자전거', stretch: '스트레칭' };
 const COND = { good: '좋음', ok: '보통', tired: '피곤함', pain: '아픈 곳' };
 const QUIT = { tired: '피곤해서', joint: '관절 통증', dizzy: '어지러움', other: '' };
 
-export function renderRecords({ data, onWeight, onExport, onImport, legacy }) {
+export function renderRecords({ data, onWeight, onExport, onImport, legacy, demo }) {
   const ws = weightSeries(data.weights);
   let weightNote = '';
   if (data.weights.length >= 2) {
@@ -43,7 +43,7 @@ export function renderRecords({ data, onWeight, onExport, onImport, legacy }) {
     </div>
     <div class="card"><h3>최근 운동</h3>${hist ? `<ul class="hist">${hist}</ul>` : '<p class="empty">아직 기록이 없습니다</p>'}
       ${legacy ? `<p class="muted" style="margin-top:.6rem">이전 앱 기록 ${legacy}회는 따로 보관되어 있습니다.</p>` : ''}</div>
-    <div class="card"><h3>기록 백업</h3>
+    ${demo ? '<p class="muted" style="text-align:center">체험 모드에서는 백업을 쓸 수 없습니다</p>' : ''}<div class="card" ${demo ? 'hidden' : ''}><h3>기록 백업</h3>
       <p class="sub" style="margin-bottom:.6rem">기록은 이 폰 안에만 저장됩니다. 브라우저 데이터를 지우면 함께 사라지니 가끔 파일로 내보내 두세요.</p>
       <div class="acts"><button id="btnExport">파일로 내보내기</button><button id="btnImport">파일에서 가져오기</button><input id="fileImport" type="file" accept=".json,application/json" hidden></div>
       <p id="impMsg" class="sub" style="margin-top:.5rem"></p>
