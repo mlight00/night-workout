@@ -3,9 +3,9 @@
   "configurations": [
     {
       "name": "night-workout",
-      "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8123"],
-      "port": 8123
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["tools/serve.mjs", "8124"],
+      "port": 8124
     }
   ]
 }
