@@ -20,7 +20,7 @@
     $('btnStart').click();
     if (scene === 'cond') return;
     d.querySelector('#condBody [data-c="good"]').click();
-    const until = { warm: '어깨', rest: '휴식', work: '데드행 · 2세트', bike: '목표 구간', end: null }[scene];
+    const until = { warm: '어깨', march: '제자리', rest: '휴식', work: '데드행 · 2세트', push: '팔굽혀펴기 · 1세트', bike: '목표 구간', end: null }[scene];
     for (let i = 0; i < 4000; i++) {
       if (scene === 'end' ? d.getElementById('screen-end').classList.contains('is-active') : $('wTitle').textContent.includes(until)) break;
       await wait(25);

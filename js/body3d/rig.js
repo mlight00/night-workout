@@ -317,7 +317,6 @@ export function createRig(THREE, opts = {}) {
   // 자세가 바뀔 때 한 번: 기구 보이기·위치 맞추기
   function setup(def, mode) {
     for (const k of EQK) EQ[k].visible = (def.eq || []).includes(k);
-    EQ.chairBack.visible = def.id !== 'inclinepush';
     const frame0 = (fr) => interp(fr, 0)[0];
     rt.plant = null;
     if (def.plant) {
@@ -329,7 +328,6 @@ export function createRig(THREE, opts = {}) {
       apply(frame0(def.ok.fr)); place(def.at, def.anc);
       const sh = wp('sh');
       rt[def.id] = { x: 0.27, y: def.push.y, z: sh.z + (def.push.dz || 0.03) };
-      if (def.id === 'inclinepush') EQ.chair.position.set(0, def.push.y - 0.05, rt[def.id].z + 0.19);
     }
     if (def.setup === 'chairUnderHip') {
       pose(def, 'ok', interp(def.ok.fr, def.ok.ref ?? 0.5)[0]);

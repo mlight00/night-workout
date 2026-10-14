@@ -24,8 +24,6 @@ const TOP = { sf: 10, sa: 18, ef: 150, el: -0.02, hf: 20, kf: 40, pf: 20, nk: -6
 
 const PUSH_UP = { rx: 73.5, pf: -12, fla: 45 }, PUSH_DN = { rx: 83, pf: -4, fla: 45 };
 const PUSH_NG_UP = { rx: 68, hf: -14, sp: -9, nk: 38, pf: -12, fla: 86 }, PUSH_NG_DN = { rx: 78, hf: -16, sp: -10, nk: 44, pf: -4, fla: 86 };
-const INC_UP = { rx: 48, pf: -22, fla: 40 }, INC_DN = { rx: 64, pf: -14, fla: 40 };
-const INC_NG_UP = { rx: 44, hf: -14, sp: -9, nk: 36, pf: -22, fla: 86 }, INC_NG_DN = { rx: 60, hf: -16, sp: -10, nk: 42, pf: -14, fla: 86 };
 
 const STAND = { ha: 10, hr: 14, flat: 1, sf: 88, sa: 8, ef: 4 };
 const CHAIR_DN = { rx: 35, hf: 125, kf: 96, ha: 12, hr: 14, flat: 1, sf: 122, sa: 8, ef: 4, nk: -12 };
@@ -45,6 +43,11 @@ const VKR_LEG = { ...VKR, sp: -4, hf: 85, kf: 4, pf: 20 };
 const VKR_NG = { el: 0.085, nk: 12, sf: 0, sa: 7, ef: 90, hf: -12, kf: 12, pf: 25 };
 
 const BIKE_P = { rx: 22, nk: -12, el: -0.01, sa: 10 };
+
+// 제자리 걷기: 서 있는 다리는 곧게(엉덩이 높이 고정), 든 다리 반대쪽 팔이 앞으로
+const MARCH_HIP = 0.873;
+const MARCH_MID = { sf: 4, ef: 70, sa: 8 };
+const marchUp = (up, arm) => ({ ...MARCH_MID, ['hf' + up]: 68, ['kf' + up]: 82, ['pf' + up]: 18, ['sf' + arm]: 34, ['ef' + arm]: 80, ['sf' + up]: -22, ['ef' + up]: 62 });
 
 const tower = (extra) => ({ eq: ['tower', 'stepF'], tg: [0, 1.2, 0.14], dist: 4.9, anc: GRIP, at: BAR, ...extra });
 const hangNg = {
@@ -117,14 +120,6 @@ export const POSES = {
       c: [['hip', '다리 반동으로 올라감', '허리·어깨에 충격', null, HP], ['head', '턱만 내밀어 바를 넘김', '목에 부담'], ['acr1', '매달릴 때 어깨가 풀림', '어깨 인대 부담', EAR, SH]],
     },
   }),
-  inclinepush: {
-    name: '경사 팔굽혀펴기', eq: ['chair'], tg: [0, 0.55, -0.25], dist: 3.6, anc: TOES, at: [0, 0, -0.85], push: { y: 0.51 },
-    ok: {
-      dur: 3600, fr: [[0, INC_UP, '① 의자는 벽에 붙이고, 손은 의자 앞쪽에'], [0.12, INC_UP, '② 들이쉬며 가슴을 의자 가까이'], [0.5, INC_DN, '③ 잠깐 멈춤'], [0.62, INC_DN, '④ 내쉬며 밀어 올리기'], [1, INC_UP]],
-      c: [['hip', '머리~발목 일직선', '엉덩이·배에 힘', BODY, HP], ['el', '팔꿈치는 몸 쪽으로', '몸통과 45° 이내', ['flare'], [...EL, ...SH]], ['wr', '의자가 밀리지 않게', '벽에 붙여 고정', null, WR], ['head', '목은 몸과 일직선', '고개 떨구지 않기']],
-    },
-    ng: pushNg({ ...INC_NG_UP }, { ...INC_NG_DN }),
-  },
   pushup: {
     name: '팔굽혀펴기', eq: ['mat'], tg: [0, 0.32, -0.25], dist: 3.4, anc: TOES, at: [0, 0, -0.98], push: { y: 0.06 },
     ok: {
@@ -230,6 +225,14 @@ export const POSES = {
       dur: 1400, lin: true, saddleDrop: 0.08, at: [0, 0.92, -0.13],
       fr: [[0, { ...BIKE_P, rx: 30, el: 0.06, nk: 5, crank: 0, hw: [0.21, 1.1, 0.47] }], [1, { ...BIKE_P, rx: 30, el: 0.06, nk: 5, crank: 360, hw: [0.21, 1.1, 0.47] }]],
       c: [['kn', '안장이 낮아 무릎이 많이 굽음', '무릎 앞쪽 부담', ['bend', '무릎 굽힘'], KN], ['acr1', '어깨 으쓱', '목·어깨 뭉침', EAR, SH], ['hip', '안장이 너무 높아도 문제', '골반이 흔들려 허리·발목 부담', null, HP]],
+    },
+  },
+  march: {
+    name: '제자리 걷기', eq: [], tg: [0, 0.95, 0], dist: 4.4, view: 62, anc: { type: 'root' }, at: [0, MARCH_HIP, 0],
+    ok: {
+      dur: 1500,
+      fr: [[0, MARCH_MID, '① 등을 펴고 무릎을 번갈아 들기'], [0.25, marchUp('L', 'R')], [0.5, MARCH_MID, '② 팔은 반대쪽으로 가볍게 흔들기'], [0.75, marchUp('R', 'L')], [1, MARCH_MID]],
+      c: [['kn', '무릎을 엉덩이 높이 가까이', '힘들면 낮게 들어도 괜찮음', null, KN], ['ball1', '발 앞쪽으로 사뿐히 딛기', '쿵쿵 딛지 않기 — 발목 보호', null, AN], ['c7', '등은 곧게, 시선은 앞', '허리를 뒤로 젖히지 않기'], ['el', '팔은 반대로 가볍게 흔들기', '어깨 힘 빼기', null, EL]],
     },
   },
   armcircle: {

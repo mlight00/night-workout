@@ -4,7 +4,7 @@ import { initLevels, applyResults, applyCondition, canUp, suggestDown, canDown, 
 
 test('시작 레벨: 팔굽혀펴기만 3, 나머지 1', () => {
   const s = initLevels();
-  assert.deepEqual(Object.fromEntries(Object.entries(s.levels).map(([k, v]) => [k, v.lv])), { hang: 1, push: 3, squat: 1, dip: 1, leg: 1, bike: 1 });
+  assert.deepEqual(Object.fromEntries(Object.entries(s.levels).map(([k, v]) => [k, v.lv])), { hang: 1, push: 1, squat: 1, dip: 1, leg: 1, bike: 1 });
   assert.deepEqual(s.pending, []);
 });
 
@@ -47,7 +47,7 @@ test('컨디션이 좋으면 성공은 그대로 확정', () => {
 });
 
 test('두 번 연속 미달하면 레벨다운을 권한다 (레벨 1이면 권하지 않음)', () => {
-  let s = applyResults(initLevels(), { push: false, hang: false }, 'normal');
+  let s = applyResults(levelUp(initLevels(), 'push'), { push: false, hang: false }, 'normal');
   s = applyResults(s, { push: false, hang: false }, 'normal');
   assert.equal(suggestDown(s, 'push'), true);
   assert.equal(suggestDown(s, 'hang'), false);
@@ -56,7 +56,7 @@ test('두 번 연속 미달하면 레벨다운을 권한다 (레벨 1이면 권�
 
 test('레벨업·다운은 카운트를 0으로, 범위를 넘지 않는다', () => {
   let s = levelUp(initLevels(), 'push');
-  assert.deepEqual(s.levels.push, { lv: 4, ok: 0, ng: 0 });
+  assert.deepEqual(s.levels.push, { lv: 2, ok: 0, ng: 0 });
   s = levelDown(levelDown(levelDown(levelDown(s, 'push'), 'push'), 'push'), 'push');
   s = levelDown(s, 'push');
   assert.equal(s.levels.push.lv, 1);

@@ -165,14 +165,18 @@ function cueTip(st) {
 function onStep(step, index) {
   S.step = step;
   S.cue = null;
-  const pose = step.kind === 'rest' ? step.next.pose : step.kind === 'ride' ? (step.zone === 'easy' && index === 0 ? 'bike' : null) : step.kind === 'work' ? null : step.pose;
+  // 휴식·웜업·스트레칭은 3D가 화면 가득, 운동·자전거 중엔 숫자 위에 작게
+  const pose = step.kind === 'rest' ? step.next.pose : step.pose || null;
+  S.mini = !!pose && (step.kind === 'work' || step.kind === 'ride');
   const w = $('screen-work');
-  w.classList.toggle('show3d', !!pose);
+  w.classList.toggle('show3d', !!pose && !S.mini);
+  w.classList.toggle('mini3d', S.mini);
   w.className = w.className.replace(/zone-\w+/g, '').trim();
   if (step.kind === 'ride') w.classList.add(`zone-${step.zone}`);
   if (pose) {
-    if (!workViewer) workViewer = createViewer($('w3d'), { zoom: 0.95, kg: myKg() });
+    if (!workViewer) workViewer = createViewer($('w3d'), { zoom: 0.95, kg: myKg(), maxFps: 30 });
     workViewer.setBody(myKg());
+    workViewer.setZoom(S.mini ? 1.2 : 0.95); // 작은 화면은 조금 멀리서 — 머리·기구가 잘리지 않게
     workViewer.show(pose, 'ok');
     workViewer.start();
   } else if (workViewer) workViewer.stop();
@@ -186,6 +190,7 @@ function render() {
   if (s.kind === 'work') {
     title = `${s.name} · ${s.setNo}세트 / ${s.totalSets}`;
     sub = s.type === 'hold' ? `${s.target}초 버티기 · 숨 쉬면서` : `목표 ${s.target}회 · 다 하면 화면 탭`;
+    tip = s.tip || '';
     phase = s.group;
   } else if (s.kind === 'rest') {
     const n = s.next;
@@ -203,7 +208,11 @@ function render() {
     sub = s.kind === 'warmup' ? '웜업' : '쿨다운';
     phase = s.kind === 'warmup' ? '웜업' : '마무리';
   }
-  tip = cueTip(st) || tip;
+  const hillSoon = s.kind === 'ride' && s.nextZone === 'hill' && st.remaining <= 12;
+  const cue = cueTip(st);
+  if (cue && !hillSoon) tip = cue;
+  const lbl = S.mini && workViewer ? workViewer.label : '';
+  if ($('wLbl').textContent !== lbl) $('wLbl').textContent = lbl;
   $('wTitle').textContent = title;
   $('wSub').textContent = sub;
   if ($('wTip').textContent !== tip) $('wTip').textContent = tip;

@@ -1,5 +1,6 @@
 // 운동 프로그램 정의 — 레벨 사다리. 숫자를 고치면 앱 전체가 따라간다.
 // type 'hold' = 시간 버티기(sec), 'reps' = 횟수(reps, tempo = 1회당 예상 초)
+//   reps를 배열로 주면 세트별 목표 (예: [15, 10, 8] = 1세트 15회, 2세트 10회, 3세트 8회)
 // pose = 3D 자세 id (body3d/poses.js)
 
 const H = (name, sec, pose, extra) => ({ name, type: 'hold', sec, pose, ...extra });
@@ -27,15 +28,15 @@ export const STRENGTH = [
     ],
   },
   {
-    id: 'push', group: '팔굽혀펴기', rest: 90, start: 3,
+    id: 'push', group: '팔굽혀펴기', rest: 90, start: 1,
     levels: [
-      N('경사 팔굽혀펴기', 10, 'inclinepush', { tip: '손은 의자 앞쪽에, 몸은 일직선' }),
-      N('경사 팔굽혀펴기', 15, 'inclinepush', { tip: '손은 의자 앞쪽에, 몸은 일직선' }),
-      N('팔굽혀펴기', 8, 'pushup', { tip: '머리부터 발목까지 일직선' }),
-      N('팔굽혀펴기', 10, 'pushup', { tip: '머리부터 발목까지 일직선' }),
-      N('팔굽혀펴기', 12, 'pushup', { tip: '머리부터 발목까지 일직선' }),
-      N('팔굽혀펴기', 15, 'pushup', { tip: '머리부터 발목까지 일직선' }),
-      N('팔굽혀펴기', 20, 'pushup', { tip: '머리부터 발목까지 일직선' }),
+      N('팔굽혀펴기', [15, 10, 8], 'pushup', { tip: '머리부터 발목까지 일직선' }),
+      N('팔굽혀펴기', [15, 12, 10], 'pushup', { tip: '머리부터 발목까지 일직선' }),
+      N('팔굽혀펴기', [18, 12, 10], 'pushup', { tip: '머리부터 발목까지 일직선' }),
+      N('팔굽혀펴기', [18, 15, 12], 'pushup', { tip: '머리부터 발목까지 일직선' }),
+      N('팔굽혀펴기', [20, 15, 12], 'pushup', { tip: '머리부터 발목까지 일직선' }),
+      N('팔굽혀펴기', [20, 18, 15], 'pushup', { tip: '머리부터 발목까지 일직선' }),
+      N('팔굽혀펴기', [25, 20, 15], 'pushup', { tip: '머리부터 발목까지 일직선' }),
     ],
   },
   {
@@ -94,7 +95,7 @@ export const HR = { easyMax: 100, target: [105, 120], light: [105, 110], hill: [
 export const WARMUP_STRENGTH = [
   { name: '어깨 돌리기', sec: 40, pose: 'armcircle', say: '어깨 돌리기 40초. 앞으로 크게, 뒤로 크게' },
   { name: '팔목·발목 돌리기', sec: 40, pose: null, say: '팔목, 발목 돌리기 40초' },
-  { name: '자전거 가볍게', sec: 100, pose: 'bike', say: '자전거 가볍게 1분 40초. 저항은 가장 낮게' },
+  { name: '제자리 걷기', sec: 100, pose: 'march', say: '제자리 걷기 1분 40초. 무릎을 번갈아 들고, 팔은 가볍게 흔드세요' },
 ];
 
 export const COOLDOWN_STRENGTH = [
@@ -122,12 +123,23 @@ export function maxLevel(id) {
   return exercise(id).levels.length;
 }
 
+// 그 세트의 목표 횟수 (세트별 목표면 그 세트 것, 세트가 더 많으면 마지막 것)
+export function repsFor(l, setNo = 1) {
+  return Array.isArray(l.reps) ? l.reps[Math.min(setNo, l.reps.length) - 1] : l.reps;
+}
+
 // 횟수 종목의 자동 진행 제한시간
-export function limitSec(l) {
-  return l.reps * l.tempo + 10;
+export function limitSec(l, setNo = 1) {
+  return repsFor(l, setNo) * l.tempo + 10;
 }
 
 export function targetText(l) {
   if (l.main != null) return `${l.main}분${l.hills ? ` · 언덕 ${l.hillSec / 60}분×${l.hills}` : ''}`;
-  return l.type === 'hold' ? `${l.sec}초` : `${l.reps}회`;
+  if (l.type === 'hold') return `${l.sec}초`;
+  return Array.isArray(l.reps) ? `${l.reps.join('·')}회` : `${l.reps}회`;
+}
+
+// 하루 계획 표시: 세트마다 같으면 "8회 × 3", 세트별이면 "15·10·8회"
+export function planText(l, sets = SETS) {
+  return Array.isArray(l.reps) ? targetText(l) : `${targetText(l)} × ${sets}`;
 }

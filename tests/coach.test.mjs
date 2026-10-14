@@ -38,8 +38,8 @@ test('딥스 안내에는 "팔꿈치 90도까지만"이 붙는다', () => {
   assert.match(announceNext(d), /팔꿈치 90도까지만$/);
 });
 
-test('버티기 중: 5초 지나면 숨 안내, 10초 남으면 "10초"', () => {
-  assert.equal(lineFor({ type: 'second', step: work, remaining: 15 }), '숨 참지 마세요');
+test('버티기 중: 5초 지나면 자세 포인트 + 숨 안내, 10초 남으면 "10초"', () => {
+  assert.equal(lineFor({ type: 'second', step: work, remaining: 15 }), '어깨를 귀에서 멀리. 숨 참지 마세요');
   assert.equal(lineFor({ type: 'second', step: work, remaining: 10 }), '10초');
 });
 
@@ -109,16 +109,37 @@ test('준비 단계: 5초에 첫 자세 포인트 (같은 운동 이름을 두 �
 });
 
 test('웜업·쿨다운: 3D 자세가 있으면 8초부터 12초 간격, 설명 개수만큼', () => {
-  const bikeWarm = S.find((x) => x.kind === 'warmup' && x.pose === 'bike');
-  assert.deepEqual(cuePlan(bikeWarm).map((c) => c.at), [8, 20, 32, 44]);
+  const march = S.find((x) => x.kind === 'warmup' && x.pose === 'march');
+  assert.deepEqual(cuePlan(march).map((c) => c.at), [8, 20, 32, 44]);
   assert.deepEqual(cuePlan(S.find((x) => x.pose === 'armcircle')).map((c) => c.at), [8]);
   assert.deepEqual(cuePlan(S.find((x) => x.kind === 'warmup' && !x.pose)), []);
   assert.equal(cuePlan(bikeDay(1)[0]).length, 4); // 자전거 날 웜업 구간
-  assert.deepEqual(cuePlan(bikeDay(1)[1]), []); // 목표 구간엔 3D가 없다
+  assert.equal(cuePlan(bikeDay(1)[1])[0].at, 30); // 목표 구간도 짧게 계속
 });
 
 test('자세 포인트는 끝나기 6초 전까지 다 말할 수 있는 시각에만', () => {
   for (const steps of [S, bikeDay(5), strengthDay(initLevels().levels, 'light')]) {
     for (const s of steps) for (const c of cuePlan(s)) assert.ok(c.at + 5 <= s.seconds - QUIET_SEC, `${s.kind} ${c.at}`);
   }
+});
+
+test('운동 중에도 자세 포인트를 짧게 계속 — 정해진 안내와 겹치지 않게', () => {
+  const p = S.filter((x) => x.exId === 'push');
+  const plan = cuePlan(p[0]);
+  assert.deepEqual(plan.map((c) => c.at), [9, 19, 29, 39, 49, 59]);
+  assert.equal(plan[0].text, '머리부터 발목까지 일직선');
+  assert.equal(plan[4].i, 0); // 설명을 돌아가며
+  assert.equal(lineFor({ type: 'second', step: p[0], remaining: p[0].seconds - 4 }), '다 하면 화면을 탭하세요');
+  const hang30 = strengthDay({ ...initLevels().levels, hang: { lv: 3, ok: 0, ng: 0 } }).find((x) => x.exId === 'hang');
+  assert.deepEqual(cuePlan(hang30).map((c) => c.at), [5, 15]); // "10초"(20초 경과)와 안 겹침
+  assert.equal(lineFor({ type: 'second', step: hang30, remaining: 10 }), '10초');
+});
+
+test('자전거 목표 구간: 90초마다 자세, 심박 확인(5분마다)과 겹치지 않게', () => {
+  const t = bikeDay(4)[1];
+  const ats = cuePlan(t).map((c) => c.at);
+  assert.deepEqual(ats.slice(0, 4), [30, 120, 210, 306]);
+  for (const at of ats) assert.ok(at < 300 || at % 300 >= 6, `${at}`);
+  assert.equal(lineFor({ type: 'second', step: t, remaining: t.seconds - 300 }), '심박 확인. 목표 105에서 120');
+  assert.match(lineFor({ type: 'second', step: t, remaining: t.seconds - 30 }), /^자세\. /);
 });

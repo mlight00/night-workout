@@ -9,8 +9,9 @@ export function strengthResults(ends) {
   for (const e of ends) {
     const s = e.step;
     if (s.kind !== 'work') continue;
-    const r = (out[s.exId] ??= { lv: s.lv, name: s.name, group: s.group, type: s.type, target: s.target, totalSets: s.totalSets, sets: [], held: [] });
+    const r = (out[s.exId] ??= { lv: s.lv, name: s.name, group: s.group, type: s.type, target: s.target, totalSets: s.totalSets, sets: [], targets: [], held: [] });
     r.sets.push(Math.round(e.actualSeconds));
+    r.targets.push(s.target);
     r.held.push(s.type === 'hold' ? e.actualSeconds >= s.target - HOLD_SLACK : null);
   }
   for (const r of Object.values(out)) {

@@ -11,6 +11,12 @@ function setsText(r) {
   return r.type === 'hold' ? r.sets.map((s) => `${s}초`).join(' · ') : `${r.setsDone}세트 · 각 ${r.sets.map((s) => `${s}초`).join(' · ')}`;
 }
 
+// 세트별 목표가 다르면 "세트별 15·10·8회 모두 했다", 같으면 "3세트 모두 8회 했다"
+function repsGoal(r) {
+  const t = r.targets || [];
+  return t.length && new Set(t).size > 1 ? `세트별 ${t.join('·')}회 모두 했다` : `${r.totalSets}세트 모두 ${r.target}회 했다`;
+}
+
 function nextInfo(id, lv) {
   if (lv >= maxLevel(id)) return null;
   const l = levelOf(id, lv + 1);
@@ -45,7 +51,7 @@ function renderChecks(ctx) {
       const tag = partial ? '<span class="tag mid">중단</span>' : r.type === 'hold' ? (r.allHeld ? '<span class="tag ok">완주</span>' : '<span class="tag ng">미달</span>') : '';
       html += `<div class="card res"><h3><span>${esc(r.name)}<span class="lv">Lv${r.lv}</span></span>${tag}</h3><p class="sets">${setsText(r)}</p>`;
       if (!partial) {
-        if (r.type === 'reps') html += `<label class="check"><input type="checkbox" data-k="reps" data-id="${id}"> ${r.totalSets}세트 모두 ${r.target}회 했다</label>`;
+        if (r.type === 'reps') html += `<label class="check"><input type="checkbox" data-k="reps" data-id="${id}"> ${repsGoal(r)}</label>`;
         html += `<label class="check"><input type="checkbox" data-k="form" data-id="${id}"> 바른 자세로 끝까지 했다</label>`;
       }
       html += '</div>';

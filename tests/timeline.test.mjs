@@ -46,9 +46,11 @@ test('매달리기 뒤 휴식은 "발판 딛고 내려오세요"를 들고 있�
   assert.match(r.after, /발판/);
 });
 
-test('횟수 종목은 제한시간을 길이로, 목표 횟수를 target으로', () => {
-  const w = strengthDay(L).find((x) => x.exId === 'push');
-  assert.deepEqual([w.type, w.target, w.seconds], ['reps', 8, 42]);
+test('횟수 종목은 제한시간을 길이로, 목표 횟수를 target으로 — 세트별 목표면 세트마다 다르게', () => {
+  const p = strengthDay(L).filter((x) => x.exId === 'push');
+  assert.deepEqual(p.map((w) => [w.type, w.target, w.seconds]), [['reps', 15, 70], ['reps', 10, 50], ['reps', 8, 42]]);
+  const light = strengthDay(L, 'light').filter((x) => x.exId === 'push');
+  assert.deepEqual(light.map((w) => w.target), [15, 10]);
 });
 
 test('레벨이 바뀌면 동작이 바뀐다', () => {

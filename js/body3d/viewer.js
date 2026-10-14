@@ -97,7 +97,14 @@ export function createViewer(container, opts = {}) {
     if (opts.onFrame) opts.onFrame(t);
   }
 
-  function loop(now) { frame(now); raf = requestAnimationFrame(loop); }
+  // maxFps: 오래 켜 두는 화면(운동 중)은 초당 그림 수를 줄여 배터리·발열을 아낀다
+  let lastF = 0;
+  function loop(now) {
+    raf = requestAnimationFrame(loop);
+    if (opts.maxFps && now - lastF < 1000 / opts.maxFps - 4) return;
+    lastF = now;
+    frame(now);
+  }
 
   if (opts.interactive) {
     let drag = null;
@@ -121,6 +128,7 @@ export function createViewer(container, opts = {}) {
     setXray: (on) => rig.setXray(on),
     setBody: (kg) => rig.setBody(kg),
     setFocus(k) { focus = k; },
+    setZoom(z) { opts.zoom = z; },
     emphasize,
     get label() { return label; },
     get callouts() { return def ? def[mode].c || [] : []; },

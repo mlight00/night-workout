@@ -1,7 +1,7 @@
 // 홈 화면 — 오늘 할 운동, 최근 7일, 체중 입력 권유
 
 import { $, esc } from './dom.js';
-import { STRENGTH, levelOf, targetText } from '../program.js';
+import { STRENGTH, levelOf, targetText, planText } from '../program.js';
 import { weekStrip, restSuggested, doneToday, streakDays } from '../schedule.js';
 import { needsWeight } from '../stats.js';
 import { secText } from '../coach.js';
@@ -22,7 +22,7 @@ export function renderHome({ data, today, type, legacy, onWeight }) {
   if (type === 'strength') {
     const rows = STRENGTH.map((e) => {
       const l = levelOf(e.id, L[e.id].lv);
-      return `<li><span>${esc(l.name)}<span class="lv">Lv${L[e.id].lv}</span></span><span>${targetText(l)} × 3</span></li>`;
+      return `<li><span>${esc(l.name)}<span class="lv">Lv${L[e.id].lv}</span></span><span>${planText(l)}</span></li>`;
     }).join('');
     $('today').innerHTML = `<p class="today-type">오늘은 근력 날</p><ul class="today-list">${rows}</ul><p class="muted" style="margin-top:.6rem">웜업 3분 · 쿨다운 3분 포함 약 30분</p>`;
   } else {

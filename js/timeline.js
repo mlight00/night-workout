@@ -8,7 +8,7 @@
 
 import {
   STRENGTH, BIKE, HR, SETS, LIGHT_SETS, LIGHT_REST_PLUS, PREP_SEC,
-  WARMUP_STRENGTH, COOLDOWN_STRENGTH, COOLDOWN_BIKE, BIKE_COOL_RIDE, levelOf, limitSec,
+  WARMUP_STRENGTH, COOLDOWN_STRENGTH, COOLDOWN_BIKE, BIKE_COOL_RIDE, levelOf, limitSec, repsFor,
 } from './program.js';
 
 const item = (kind) => (x) => ({ kind, name: x.name, seconds: x.sec, pose: x.pose, say: x.say });
@@ -25,8 +25,8 @@ export function strengthDay(levels, mode = 'normal') {
     for (let setNo = 1; setNo <= sets; setNo++) {
       works.push({
         kind: 'work', exId: ex.id, group: ex.group, lv, name: l.name, type: l.type,
-        target: l.type === 'hold' ? l.sec : l.reps,
-        seconds: l.type === 'hold' ? l.sec : limitSec(l),
+        target: l.type === 'hold' ? l.sec : repsFor(l, setNo),
+        seconds: l.type === 'hold' ? l.sec : limitSec(l, setNo),
         setNo, totalSets: sets, pose: l.pose, tip: l.tip, cue: ex.cue,
         rest: ex.rest + (light ? LIGHT_REST_PLUS : 0), after: ex.after,
       });

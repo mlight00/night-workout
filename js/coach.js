@@ -5,6 +5,7 @@ import { POSES } from './body3d/poses.js';
 
 export const QUIET_SEC = 6;
 const CUE_SEC = 5; // 자세 포인트 한 줄을 말하는 데 걸리는 넉넉한 시간
+const SHORT_SEC = 4; // 운동 중 짧은 포인트(제목만)
 const SET_WORDS = ['', '첫', '두', '세', '네', '다섯'];
 
 export function secText(s) {
@@ -33,24 +34,61 @@ export function postureLine(pose, i, mode = 'ok') {
   return speakable(`${x[1]}. ${x[2]}`);
 }
 
-// 3D 자세가 나오는 단계에서 자세 포인트를 읽어 줄 때: [{ at(경과 초), pose, i(설명 번호), text }]
+// 정해진 안내가 나가는 시간 [시작, 끝) — 자세 포인트가 여기에 끼어들지 않게
+function busy(s) {
+  const b = [];
+  if (s.kind === 'work') {
+    if (s.type === 'hold') b.push([s.seconds - 10, s.seconds - 8]); // "10초"
+    else if (s.setNo === 1) b.push([4, 7]); // "다 하면 화면을 탭하세요"
+  }
+  if (s.kind === 'ride') {
+    if (s.nextZone === 'hill') b.push([s.seconds - 10, s.seconds - 4]);
+    if (s.zone === 'target') for (let t = 300; t < s.seconds; t += 300) b.push([t, t + 6]); // 심박 확인
+  }
+  return b;
+}
+
+// first초부터 gap 간격으로, 정해진 안내와 겹치지 않고 끝나기 6초 전까지 다 말할 수 있는 시각들
+function slots(s, first, gap, len) {
+  const b = busy(s), out = [];
+  for (let at = first; at + len <= s.seconds - QUIET_SEC;) {
+    if (b.some(([x, y]) => at < y && x < at + len)) { at++; continue; }
+    out.push(at);
+    at += gap;
+  }
+  return out;
+}
+
+// 3D 자세가 나오는 단계에서 자세 포인트를 읽어 줄 때: [{ at(경과 초), pose, i(설명 번호), title, text }]
+//   운동 중: 짧게(제목만) 10초 간격으로 계속 — 버티기 첫 마디엔 "숨 참지 마세요"를 붙인다
+//   자전거 목표·언덕·쿨다운: 30초부터 90초 간격으로 짧게
 //   준비 5초 / 휴식 10·22초 (세트마다 다른 포인트) / 웜업·쿨다운·자전거 웜업 8초부터 12초 간격
 export function cuePlan(s) {
-  let pose = null, ats = [], first = 0;
-  if (s.kind === 'rest') {
-    pose = s.next.pose;
-    if (s.prep) ats = [5];
-    else { ats = [10, 22]; first = (s.next.setNo - 1) * 2; }
-  } else if (s.kind === 'warmup' || s.kind === 'cooldown' || (s.kind === 'ride' && s.zone === 'easy')) {
-    pose = s.pose;
-    for (let at = 8; at + CUE_SEC <= s.seconds - QUIET_SEC; at += 12) ats.push(at);
-  }
+  const pose = s.kind === 'rest' ? s.next.pose : s.pose;
   const c = pose && POSES[pose] && POSES[pose].ok.c;
   if (!c || !c.length) return [];
+  const item = (at, i, text) => ({ at, pose, i, title: c[i][1], text });
+  if (s.kind === 'work') {
+    const hold = s.type === 'hold';
+    return slots(s, hold ? 5 : 9, 10, SHORT_SEC).map((at, j) => {
+      const i = j % c.length;
+      return item(at, i, speakable(c[i][1]) + (hold && j === 0 && s.seconds >= 15 ? '. 숨 참지 마세요' : ''));
+    });
+  }
+  if (s.kind === 'ride' && s.zone !== 'easy') {
+    return slots(s, 30, 90, SHORT_SEC).map((at, j) => item(at, j % c.length, `자세. ${speakable(c[j % c.length][1])}`));
+  }
+  let ats = [], first = 0;
+  if (s.kind === 'rest') {
+    ats = s.prep ? [5] : [10, 22];
+    first = s.prep ? 0 : (s.next.setNo - 1) * 2;
+  } else if (s.kind === 'warmup' || s.kind === 'cooldown' || s.kind === 'ride') {
+    ats = slots(s, 8, 12, CUE_SEC);
+  }
   ats = ats.slice(0, c.length).filter((at) => at + CUE_SEC <= s.seconds - QUIET_SEC);
   return ats.map((at, j) => {
     const i = (first + j) % c.length;
-    return { at, pose, i, title: c[i][1], text: (j === 0 ? '자세 포인트. ' : '') + postureLine(pose, i) };
+    return item(at, i, (j === 0 ? '자세 포인트. ' : '') + postureLine(pose, i));
   });
 }
 

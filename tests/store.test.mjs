@@ -10,7 +10,8 @@ const fake = () => {
 test('처음엔 빈 문서 — 시작 레벨이 들어 있다', () => {
   const d = createStore(fake()).load();
   assert.equal(d.v, 2);
-  assert.equal(d.state.levels.push.lv, 3);
+  assert.equal(d.state.levels.push.lv, 1);
+  assert.equal(d.ladder, 2);
   assert.ok(validate(d));
 });
 
@@ -65,4 +66,41 @@ test('레벨이 범위를 벗어난 파일은 거절', () => {
   const d = emptyData();
   d.state.levels.hang.lv = 99;
   assert.equal(validate(d), false);
+});
+
+test('예전 팔굽혀펴기 레벨은 새 사다리로 옮기고, 다른 기록은 그대로', () => {
+  const st = fake();
+  const old = emptyData();
+  delete old.ladder;
+  old.state.levels.push = { lv: 4, ok: 1, ng: 0 };
+  old.state.levels.hang = { lv: 2, ok: 1, ng: 0 };
+  old.state.pending = ['push', 'hang'];
+  old.sessions = [
+    { date: '2026-10-11', type: 'strength', results: { push: { lv: 3, name: '팔굽혀펴기' }, hang: { lv: 1 } } },
+    { date: '2026-10-12', type: 'bike', bike: { lv: 1 } },
+  ];
+  old.weights = [{ date: '2026-10-11', kg: 90.2 }];
+  st.setItem(KEY, JSON.stringify(old));
+  const d = createStore(st).load();
+  assert.deepEqual(d.state.levels.push, { lv: 1, ok: 0, ng: 0 });
+  assert.deepEqual(d.state.levels.hang, { lv: 2, ok: 1, ng: 0 });
+  assert.deepEqual(d.state.pending, ['hang']);
+  assert.equal(d.sessions[0].results.push.lv, 1);
+  assert.equal(d.sessions[0].results.hang.lv, 1);
+  assert.equal(d.sessions.length, 2);
+  assert.equal(d.weights[0].kg, 90.2);
+  assert.equal(d.ladder, 2);
+  // 한 번 옮긴 기록은 다시 옮기지 않는다
+  d.state.levels.push = { lv: 5, ok: 0, ng: 0 };
+  st.setItem(KEY, JSON.stringify(d));
+  assert.equal(createStore(st).load().state.levels.push.lv, 5);
+});
+
+test('예전 높은 레벨도 비슷한 난이도로 (12회×3 → 15·12·10, 20회×3 → 25·20·15)', () => {
+  for (const [from, to] of [[5, 2], [6, 4], [7, 7]]) {
+    const d = emptyData();
+    delete d.ladder;
+    d.state.levels.push = { lv: from, ok: 0, ng: 0 };
+    assert.equal(importJson(JSON.stringify(d)).state.levels.push.lv, to);
+  }
 });

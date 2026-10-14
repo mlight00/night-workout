@@ -77,6 +77,15 @@ label.check input { width: 1.4rem; height: 1.4rem; accent-color: var(--ok); }
 .work.show3d .wclock.long { font-size: min(22vh, 18vw); }
 .work.show3d .wtitle, .work.show3d .wsub { text-shadow: 0 1px 6px #000; background: rgba(11, 15, 20, 0.82); border-radius: 8px; padding: 0.1rem 0.55rem; }
 .work.show3d .wtip { background: linear-gradient(transparent, rgba(11, 15, 20, 0.85) 35%); padding: 1.5rem 1rem 0.4rem; }
+/* 운동·자전거 중: 위에 작은 3D(동작 설명 한 줄), 아래에 숫자 */
+.wlbl { display: none; }
+.work.mini3d .w3d { display: block; top: calc(env(safe-area-inset-top) + 5rem); bottom: auto; height: 38vh; }
+.work.mini3d .wlbl { display: block; position: absolute; left: 50%; transform: translateX(-50%); max-width: calc(100% - 1.6rem); top: calc(env(safe-area-inset-top) + 5rem + 38vh - 1.9rem); text-align: center; font-size: 0.9rem; color: #cfe0f2; z-index: 3; padding: 0.15rem 0.6rem; border-radius: 8px; background: rgba(11, 15, 20, 0.82); pointer-events: none; }
+.work.mini3d .wlbl:empty { display: none; }
+.work.mini3d .wtap { justify-content: flex-start; padding-top: calc(env(safe-area-inset-top) + 2.7rem); }
+.work.mini3d .wtitle { font-size: 1.2rem; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: calc(38vh + 0.8rem); }
+.work.mini3d .wclock { font-size: min(22vh, 42vw); }
+.work.mini3d .wclock.long { font-size: min(18vh, 21vw); }
 /* 자전거 구간 색 */
 .work.zone-target .wsub { color: #7fe0b6; } .work.zone-hill .wsub { color: var(--hill); } .work.zone-hill .wclock { color: var(--hill); }
 @media (orientation: landscape) {
@@ -84,6 +93,13 @@ label.check input { width: 1.4rem; height: 1.4rem; accent-color: var(--ok); }
   .wclock.long { font-size: min(50vh, 22vw); }
   .work.show3d .wclock { font-size: min(30vh, 18vw); }
   .wtitle { font-size: 1.25rem; }
+  .work.mini3d .w3d { top: 2.6rem; bottom: 3.4rem; height: auto; right: 48%; }
+  .work.mini3d .wlbl { top: auto; bottom: 3.6rem; left: 26%; max-width: 46%; }
+  .work.mini3d .wtap { justify-content: center; padding: 2.6rem 1rem 4rem 52%; }
+  .work.mini3d .wtitle { margin-bottom: 0.3rem; }
+  .work.mini3d .wclock { font-size: min(40vh, 20vw); }
+  .work.mini3d .wclock.long { font-size: min(32vh, 11vw); }
+  .work.mini3d .wtip { left: 52%; }
 }
 
 /* 완료 */
