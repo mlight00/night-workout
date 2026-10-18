@@ -27,7 +27,14 @@ test('휴식과 준비는 카운트다운, 운동·웜업·쿨다운은 아니�
   for (const x of s) assert.equal(needsCountdown(x), x.kind === 'rest', `${x.kind}`);
 });
 
-test('자전거는 언덕 직전 구간만 카운트다운', () => {
-  const b = bikeDay(6);
-  for (const x of b) assert.equal(needsCountdown(x), x.nextZone === 'hill');
+test('자전거는 더 힘든 구간(세게·빠르게·저항 올리기) 직전만 카운트다운', () => {
+  for (const r of ['interval', 'pyramid', 'speed', 'steady']) {
+    const b = bikeDay(6, 'normal', r);
+    b.forEach((x, i) => {
+      const n = b[i + 1];
+      const harder = !!n && n.kind === 'ride' && (n.zone === 'hard' || n.zone === 'fast' || (n.zone === 'climb' && n.dir === 'up'));
+      assert.equal(needsCountdown(x), harder, `${r} ${i}`);
+    });
+  }
+  assert.equal(bikeDay(1, 'normal', 'steady').filter(needsCountdown).length, 0);
 });

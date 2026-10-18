@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { STRENGTH, BIKE, levelOf, maxLevel, limitSec, targetText, planText, repsFor, WARMUP_STRENGTH, COOLDOWN_STRENGTH, COOLDOWN_BIKE } from '../js/program.js';
+import { STRENGTH, BIKE, BIKE_ROUTINES, levelOf, maxLevel, limitSec, targetText, planText, repsFor, WARMUP_STRENGTH, COOLDOWN_STRENGTH, COOLDOWN_BIKE } from '../js/program.js';
 
 test('근력 5종목, 순서는 매달리기 → 팔굽혀펴기 → 스쿼트 → 딥스 → 다리 들기', () => {
   assert.deepEqual(STRENGTH.map((e) => e.id), ['hang', 'push', 'squat', 'dip', 'leg']);
@@ -43,11 +43,13 @@ test('횟수 종목 제한시간 = 횟수 × 1회 시간 + 10초', () => {
   assert.equal(limitSec(levelOf('hang', 7)), 3 * 10 + 10);
 });
 
-test('자전거: 메인은 30분을 넘지 않고, 언덕 구간이 메인보다 짧다', () => {
+test('자전거: 메인은 20분 이하, 강도 1~4, 피라미드는 +3까지만 (무거운 저항은 혈압을 크게 올린다)', () => {
   for (const l of BIKE.levels) {
-    assert.ok(l.main <= 22);
-    assert.ok(l.hills * l.hillSec < l.main * 60 / 2);
+    assert.ok(l.main <= 20);
+    assert.ok(l.tier >= 1 && l.tier <= 4);
   }
+  assert.ok(BIKE_ROUTINES.pyramid.steps.every((st) => Math.max(...st) <= 3 && st[0] === 0 && st.at(-1) === 0));
+  for (const r of ['interval', 'speed']) assert.equal(BIKE_ROUTINES[r].cycle.length, 4);
 });
 
 test('웜업 3분, 근력 쿨다운 3분, 자전거 스트레칭 2분', () => {
@@ -62,8 +64,8 @@ test('목표 표시 문구', () => {
   assert.equal(targetText(levelOf('push', 1)), '15·10·8회');
   assert.equal(planText(levelOf('push', 1)), '15·10·8회');
   assert.equal(planText(levelOf('squat', 1)), '10회 × 3');
-  assert.equal(targetText(levelOf('bike', 1)), '12분');
-  assert.equal(targetText(levelOf('bike', 7)), '22분 · 언덕 2분×4');
+  assert.equal(targetText(levelOf('bike', 1)), '12분 · 강도 1');
+  assert.equal(targetText(levelOf('bike', 7)), '20분 · 강도 4');
 });
 
 test('팔굽혀펴기: 경사(의자) 팔굽혀펴기는 없고, 세트별 목표 횟수', () => {

@@ -6,13 +6,13 @@ import { lineFor, cuePlan } from './coach.js';
 import { speak, stopSpeech, unlockSpeech } from './speech.js';
 import { createBeeper, needsCountdown } from './beeps.js';
 import { createStore, exportJson, importJson } from './store.js';
-import { nextType, ymd } from './schedule.js';
+import { nextType, nextRoutine, ymd, isWeekend } from './schedule.js';
 import { applyResults, applyCondition, levelUp, levelDown } from './levels.js';
-import { makeRecord, judge } from './session.js';
+import { makeRecord, gradeStrength, gradeBike } from './session.js';
 import { addWeight } from './stats.js';
-import { formatClock } from './format.js';
+import { formatClock, withRo } from './format.js';
 import { createWakeLock } from './wakelock.js';
-import { STRENGTH } from './program.js';
+import { STRENGTH, BIKE_ROUTINES } from './program.js';
 import { $, esc, show, back, home, onShow, wireBackButtons } from './ui/dom.js';
 import { renderHome } from './ui/home.js';
 import { openPosture, closePosture } from './ui/posture.js';
@@ -31,6 +31,7 @@ const beeper = createBeeper();
 const wakeLock = createWakeLock();
 let data = store.load();
 let typeOverride = null;
+let routineOverride = null; // 자전거 날 홈에서 고른 루틴 (없으면 차례대로)
 let S = null; // 진행 중인 운동
 let workViewer = null;
 let endRec = null;
@@ -42,6 +43,7 @@ let demo = false; // 체험 모드: 기록을 복사본으로만 다루고 저�
 const save = () => (demo ? true : store.save(data));
 const myKg = () => (data.weights.length ? data.weights.at(-1).kg : 90);
 const todayType = () => typeOverride || nextType(data.sessions);
+const todayRoutine = () => routineOverride || nextRoutine(data.sessions);
 
 // ---- 음성 ----------------------------------------------------------------
 function unlockAudio() {
@@ -51,11 +53,21 @@ function unlockAudio() {
 
 // ---- 홈 ------------------------------------------------------------------
 function refreshHome() {
-  renderHome({ data, today: today(), type: todayType(), legacy: store.legacyCount(), onWeight: (kg) => { data.weights = addWeight(data.weights, today(), kg); save(); refreshHome(); } });
+  renderHome({
+    data, today: today(), type: todayType(), routine: todayRoutine(), legacy: store.legacyCount(),
+    onWeight: (kg) => { data.weights = addWeight(data.weights, today(), kg); save(); refreshHome(); },
+    onRoutine: (r) => { routineOverride = r; refreshHome(); },
+  });
 }
 onShow('home', refreshHome);
 $('btnSwap').onclick = () => { typeOverride = todayType() === 'strength' ? 'bike' : 'strength'; refreshHome(); };
 $('btnStart').onclick = () => { unlockAudio(); renderCondition(); show('cond'); };
+// 주말: 오늘은 쉬기 — 운동 차례는 그대로 다음으로 넘어간다
+$('btnPass').onclick = () => {
+  if (!data.sessions.some((s) => s.date === today() && s.type === 'rest')) data.sessions.push({ date: today(), type: 'rest' });
+  save();
+  refreshHome();
+};
 $('toPosture').onclick = () => { show('posture'); openPosture({ levels: data.state.levels, kg: myKg() }); };
 $('toRecords').onclick = () => { show('records'); };
 $('toSafety').onclick = () => show('safety');
@@ -88,7 +100,7 @@ function renderCondition(step = 'ask') {
   const type = todayType();
   const opt = (k, emo, title, sub) => `<button data-c="${k}"><span class="emo">${emo}</span><span>${title}<small>${sub}</small></span></button>`;
   $('condBody').innerHTML = step === 'ask'
-    ? opt('good', '😀', '좋음', '계획대로') + opt('ok', '🙂', '보통', '계획대로') + opt('tired', '😮‍💨', '피곤함', type === 'strength' ? '가볍게: 2세트, 휴식 +15초' : '가볍게: 메인 ⅔, 언덕 없음') + opt('pain', '🤕', '아픈 곳이 있음', '오늘은 쉬기를 권합니다')
+    ? opt('good', '😀', '좋음', '계획대로') + opt('ok', '🙂', '보통', '계획대로') + opt('tired', '😮‍💨', '피곤함', type === 'strength' ? '가볍게: 2세트, 휴식 +15초' : '가볍게: 꾸준히 타기, 시간 ⅔') + opt('pain', '🤕', '아픈 곳이 있음', '오늘은 쉬기를 권합니다')
     : `<div class="banner warn">아픈 곳이 있으면 쉬는 게 회복에 가장 좋습니다.</div>` + opt('stretch', '🧘', '스트레칭만 하기', '4분, 근육 풀기') + opt('light', '🐢', '그래도 가볍게 하기', '아픈 부위는 무리하지 않기') + opt('rest', '🛌', '오늘은 쉬기', '홈으로');
   $('condBody').onclick = (e) => {
     const b = e.target.closest('button'); if (!b) return;
@@ -105,9 +117,11 @@ function startSession(type, mode, condition) {
   unlockAudio();
   data.state = applyCondition(data.state, condition);
   save();
-  const steps = type === 'strength' ? strengthDay(data.state.levels, mode) : type === 'bike' ? bikeDay(data.state.levels.bike.lv, mode) : stretchDay();
-  S = { type, mode, condition, steps, total: totalSeconds(steps), timer: createTimer(steps), ends: [], startedAt: new Date().toISOString(), beeped: new Set(), last: clock(), active: true, step: null, paused: 0 };
+  const routine = type === 'bike' ? (mode === 'light' ? 'steady' : todayRoutine()) : null;
+  const steps = type === 'strength' ? strengthDay(data.state.levels, mode) : type === 'bike' ? bikeDay(data.state.levels.bike.lv, mode, routine) : stretchDay();
+  S = { type, mode, condition, routine, steps, total: totalSeconds(steps), timer: createTimer(steps), ends: [], startedAt: new Date().toISOString(), beeped: new Set(), last: clock(), active: true, step: null, paused: 0 };
   typeOverride = null;
+  routineOverride = null;
   wakeLock.acquire();
   show('work', { replace: true });
   handle(S.timer.start(clock()));
@@ -140,7 +154,7 @@ function handle(events, catching = false) {
     if (e.type === 'stepEnd') {
       S.ends.push(e);
       const next = S.steps[e.index + 1];
-      if (e.reason === 'skip' && next && (next.kind === 'work' || next.zone === 'hill')) beeper.countdown(0);
+      if (e.reason === 'skip' && next && (next.kind === 'work' || e.step.beepEnd)) beeper.countdown(0);
     }
     if (e.type === 'sessionEnd') return finish(true);
   }
@@ -180,7 +194,8 @@ function onStep(step, index) {
     workViewer.show(pose, 'ok');
     workViewer.start();
   } else if (workViewer) workViewer.stop();
-  if ((step.kind === 'warmup' || step.kind === 'cooldown' || (step.kind === 'ride' && step.zone !== 'hill')) && index > 0) beeper.ding();
+  const prev = S.steps[index - 1];
+  if ((step.kind === 'warmup' || step.kind === 'cooldown' || step.kind === 'ride') && prev && !prev.beepEnd) beeper.ding();
   $('btnSkip').hidden = step.kind !== 'ride';
 }
 
@@ -199,18 +214,20 @@ function render() {
     tip = n.tip || '';
     phase = n.group;
   } else if (s.kind === 'ride') {
-    title = s.zone === 'easy' ? '웜업 — 가볍게' : s.zone === 'hill' ? `언덕 구간 ${s.hillNo}/${s.hills}` : s.zone === 'cool' ? '쿨다운 — 저항 가장 낮게' : '목표 구간';
-    sub = s.zone === 'easy' || s.zone === 'cool' ? `심박 ${s.hr[1]} 이하` : `심박 ${s.hr[0]}~${s.hr[1]}`;
-    if (s.nextZone === 'hill' && st.remaining <= 12) tip = '곧 언덕 — 저항 두 단계 올리기';
-    phase = '자전거';
+    title = s.name;
+    sub = `${s.routine === 'pyramid' ? '' : `저항 ${s.res} · `}${s.feel}
+심박 ${s.hr[0] ? `${s.hr[0]}~${s.hr[1]}` : `${s.hr[1]} 이하`}`;
+    phase = `자전거 · ${BIKE_ROUTINES[s.routine].name}`;
   } else {
     title = s.name;
     sub = s.kind === 'warmup' ? '웜업' : '쿨다운';
     phase = s.kind === 'warmup' ? '웜업' : '마무리';
   }
-  const hillSoon = s.kind === 'ride' && s.nextZone === 'hill' && st.remaining <= 12;
+  // 더 힘든 구간 직전엔 그 예고가 자세 포인트보다 먼저
+  const soon = s.kind === 'ride' && s.beepEnd && st.remaining <= 12;
   const cue = cueTip(st);
-  if (cue && !hillSoon) tip = cue;
+  if (soon) tip = s.upNext.zone === 'climb' ? `곧 저항 ${withRo(s.upNext.res)} 올리기` : `곧 ${s.upNext.name} — 저항 ${s.upNext.res}`;
+  else if (cue) tip = cue;
   const lbl = S.mini && workViewer ? workViewer.label : '';
   if ($('wLbl').textContent !== lbl) $('wLbl').textContent = lbl;
   $('wTitle').textContent = title;
@@ -279,19 +296,24 @@ $('stopOk').onclick = showEnd;
 function showEnd() {
   show('end', { replace: true });
   renderEnd({
-    rec: endRec, state: data.state,
+    rec: endRec, state: data.state, sessions: data.sessions,
     onHome: () => home(),
-    onSave: (checks, bike) => {
+    onSave: (evals, bike) => {
       const results = {};
+      const ok = (g) => g === 'great' || g === 'good';
       if (endRec.type === 'strength') {
         for (const [id, r] of Object.entries(endRec.results)) {
-          r.success = judge(r, checks[id] || {});
-          if (r.setsDone >= r.totalSets) results[id] = r.success;
+          const ev = evals[id] || {};
+          const { grade, why } = gradeStrength(r, ev);
+          Object.assign(r, { done: ev.done || null, form: ev.form || null, effort: ev.effort || null, grade, why, success: ok(grade) });
+          if (grade) results[id] = grade;
         }
       } else {
-        Object.assign(endRec.bike, { avgHr: bike.avgHr, resistance: bike.resistance });
-        endRec.bike.success = endRec.bike.mainDone && bike.zone;
-        if (endRec.completed || endRec.bike.mainDone) results.bike = endRec.bike.success;
+        const b = endRec.bike;
+        Object.assign(b, bike);
+        const { grade, why } = gradeBike(b, bike, endRec.completed);
+        Object.assign(b, { grade, why, success: ok(grade) });
+        if (grade) results.bike = grade;
       }
       endRec.judged = true;
       data.state = applyResults(data.state, results, endRec.mode);

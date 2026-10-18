@@ -72,3 +72,19 @@ test('원래 상태 객체는 바꾸지 않는다', () => {
   assert.equal(s0.levels.hang.ok, 0);
   assert.equal(s0.levels.hang.lv, 1);
 });
+
+test('등급별 레벨 점수: 여유 있게 성공은 바로 레벨업 가능, 유지는 실패가 아니다', () => {
+  let s = applyResults(initLevels(), { push: 'great', hang: 'good', squat: 'keep', dip: 'miss' }, 'normal');
+  assert.equal(canUp(s, 'push'), true);
+  assert.equal(canUp(s, 'hang'), false);
+  assert.deepEqual(s.levels.squat, { lv: 1, ok: 0, ng: 0 });
+  assert.equal(s.levels.dip.ng, 1);
+  assert.deepEqual(s.pending, ['push', 'push', 'hang']);
+  // 다음 운동 때 피곤하면 그만큼 무효
+  s = applyCondition(s, 'tired');
+  assert.equal(s.levels.push.ok, 0);
+  assert.equal(s.levels.hang.ok, 0);
+  // 유지는 연속 미달을 끊는다
+  s = applyResults(s, { dip: 'keep' }, 'normal');
+  assert.equal(s.levels.dip.ng, 0);
+});

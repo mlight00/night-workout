@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nextType, streakDays, restSuggested, weekStrip, addDays, doneToday } from '../js/schedule.js';
+import { nextType, streakDays, restSuggested, weekStrip, addDays, doneToday, passedToday, isWeekend, nextRoutine } from '../js/schedule.js';
 
 const S = (date, type, mode = 'normal') => ({ date, type, mode });
 
@@ -44,11 +44,34 @@ test('최근 7일 달력 줄', () => {
   assert.equal(w.length, 7);
   assert.equal(w[0].date, '2026-10-01');
   assert.equal(w[4].type, 'strength');
-  assert.deepEqual(w[6], { date: '2026-10-07', type: 'bike', light: true });
+  assert.deepEqual(w[6], { date: '2026-10-07', type: 'bike', light: true, weekend: false });
+  assert.equal(w[3].weekend, true); // 2026-10-04 일요일
   assert.equal(w[5].type, null);
 });
 
 test('오늘 했는지', () => {
   assert.equal(doneToday([S('2026-10-07', 'bike')], '2026-10-07'), true);
   assert.equal(doneToday([S('2026-10-06', 'bike')], '2026-10-07'), false);
+});
+
+test('주말은 선택 — 쉬기 기록은 운동 차례·연속 일수에 안 들어간다', () => {
+  assert.equal(isWeekend('2026-10-17'), true); // 토
+  assert.equal(isWeekend('2026-10-18'), true); // 일
+  assert.equal(isWeekend('2026-10-19'), false); // 월
+  const ss = [S('2026-10-16', 'strength'), S('2026-10-17', 'rest')];
+  assert.equal(nextType(ss), 'bike');
+  assert.equal(doneToday(ss, '2026-10-17'), false);
+  assert.equal(passedToday(ss, '2026-10-17'), true);
+  assert.equal(streakDays(ss, '2026-10-18'), 0);
+  assert.equal(weekStrip(ss, '2026-10-17')[6].type, 'rest');
+});
+
+test('자전거 루틴은 자전거 날마다 인터벌 → 피라미드 → 빠르게 차례로', () => {
+  const B = (d, routine) => ({ date: d, type: 'bike', bike: { routine } });
+  assert.equal(nextRoutine([]), 'interval');
+  assert.equal(nextRoutine([B('2026-10-14', 'interval')]), 'pyramid');
+  assert.equal(nextRoutine([B('2026-10-14', 'interval'), B('2026-10-16', 'pyramid')]), 'speed');
+  assert.equal(nextRoutine([B('2026-10-14', 'speed')]), 'interval');
+  assert.equal(nextRoutine([B('2026-10-14', 'pyramid'), B('2026-10-16', 'steady')]), 'speed'); // 꾸준히는 차례에 안 셈
+  assert.equal(nextRoutine([{ date: '2026-10-12', type: 'bike', bike: { lv: 1 } }]), 'interval'); // 예전 기록
 });

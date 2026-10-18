@@ -3,7 +3,7 @@
 import { $, esc } from './dom.js';
 import { lineChart } from '../charts.js';
 import { weightSeries, bikeSeries, levelSeries } from '../stats.js';
-import { STRENGTH, levelOf } from '../program.js';
+import { STRENGTH, BIKE_ROUTINES, levelOf } from '../program.js';
 import { secText } from '../coach.js';
 
 const COLORS = { hang: '#378ADD', push: '#D85A30', squat: '#639922', dip: '#7F77DD', leg: '#D4537E' };
@@ -20,10 +20,10 @@ export function renderRecords({ data, onWeight, onExport, onImport, legacy, demo
   }
   const bs = bikeSeries(data.sessions);
   const lvSeries = STRENGTH.map((e) => ({ points: levelSeries(data.sessions, e.id), color: COLORS[e.id], label: e.group }));
-  const hist = data.sessions.slice(-12).reverse().map((s) => {
+  const hist = data.sessions.filter((s) => s.type !== 'rest').slice(-12).reverse().map((s) => {
     const what = s.type === 'strength' && s.results
       ? Object.values(s.results).map((r) => `${r.name} Lv${r.lv}`).join(', ')
-      : s.type === 'bike' ? `Lv${s.bike?.lv ?? ''}${s.bike?.avgHr ? ` · 평균 심박 ${s.bike.avgHr}` : ''}${s.bike?.resistance ? ` · 저항 ${s.bike.resistance}` : ''}` : '';
+      : s.type === 'bike' ? `${s.bike?.routine && BIKE_ROUTINES[s.bike.routine] ? `${BIKE_ROUTINES[s.bike.routine].name} ` : ''}Lv${s.bike?.lv ?? ''}${s.bike?.avgHr ? ` · 평균 심박 ${s.bike.avgHr}` : ''}${s.bike?.resistance ? ` · 저항 ${s.bike.resistance}` : ''}` : '';
     const tag = [s.mode === 'light' ? '가볍게' : '', s.completed ? '' : `중단${QUIT[s.quitReason] ? `(${QUIT[s.quitReason]})` : ''}`, s.condition ? COND[s.condition] : ''].filter(Boolean).join(' · ');
     return `<li><span><b>${s.date.slice(5).replace('-', '/')} ${TYPE[s.type] || ''}</b> ${esc(what)}</span><span>${secText(s.totalSeconds)}${tag ? ` · ${tag}` : ''}</span></li>`;
   }).join('');

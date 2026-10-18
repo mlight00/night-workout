@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { strengthResults, judge, bikeMainDone, makeRecord } from '../js/session.js';
+import { strengthResults, gradeStrength, gradeBike, defaultDone, lastResult, bikeMainDone, makeRecord } from '../js/session.js';
 import { strengthDay, bikeDay } from '../js/timeline.js';
 import { initLevels } from '../js/levels.js';
 
@@ -23,36 +23,75 @@ test('웜업·휴식·쿨다운은 결과에 들어가지 않는다', () => {
   assert.deepEqual(Object.keys(r), ['hang']);
 });
 
-test('판정: 버티기는 완주 + 자세 체크, 횟수는 횟수 체크 + 자세 체크', () => {
-  const h = strengthResults(works('hang').map((w) => end(w, 20))).hang;
-  assert.equal(judge(h, { form: true }), true);
-  assert.equal(judge(h, { form: false }), false);
+test('평가 기본값: 횟수는 세트별 목표, 버티기는 타이머가 잰 초', () => {
   const p = strengthResults(works('push').map((w) => end(w, 30, 'skip'))).push;
-  assert.equal(judge(p, { reps: true, form: true }), true);
-  assert.equal(judge(p, { reps: false, form: true }), false);
+  assert.deepEqual(p.targets, [15, 10, 8]);
+  assert.deepEqual(defaultDone(p), [15, 10, 8]);
+  const h = strengthResults(works('hang').map((w, i) => end(w, i === 2 ? 14.2 : 20))).hang;
+  assert.deepEqual(defaultDone(h), [20, 20, 14]);
 });
 
-test('중간에 그만둬서 세트가 모자라면 미달', () => {
+test('등급: 목표·자세·힘든 정도로 — 여유 있게 성공 / 성공 / 유지 / 미달', () => {
+  const p = strengthResults(works('push').map((w) => end(w, 30, 'skip'))).push;
+  const g = (ev) => gradeStrength(p, { done: [15, 10, 8], form: 'good', effort: 'ok', ...ev }).grade;
+  assert.equal(g({}), 'good');
+  assert.equal(g({ effort: 'easy' }), 'great');
+  assert.equal(g({ done: [18, 12, 10] }), 'great'); // 목표보다 20% 이상
+  assert.equal(g({ effort: 'hard' }), 'keep');
+  assert.equal(g({ form: 'some' }), 'keep');
+  assert.equal(g({ form: 'bad' }), 'miss');
+  assert.equal(g({ done: [15, 9, 8] }), 'miss');
+  assert.match(gradeStrength(p, { done: [15, 9, 7], form: 'good', effort: 'ok' }).why, /2세트 9\/10, 3세트 7\/8/);
+});
+
+test('버티기: 타이머보다 일찍 놓았으면 미달 (평가에서 초를 줄여도 미달)', () => {
+  const h = strengthResults(works('hang').map((w, i) => end(w, i === 2 ? 14.2 : 20))).hang;
+  assert.equal(gradeStrength(h, { form: 'good', effort: 'ok' }).grade, 'miss');
+  const ok = strengthResults(works('hang').map((w) => end(w, 20))).hang;
+  assert.equal(gradeStrength(ok, { form: 'good', effort: 'ok' }).grade, 'good');
+  assert.equal(gradeStrength(ok, { done: [20, 20, 15], form: 'good', effort: 'ok' }).grade, 'miss');
+});
+
+test('중간에 그만둬서 세트가 모자라면 평가하지 않는다 (레벨 그대로)', () => {
   const h = strengthResults(works('hang').slice(0, 2).map((w) => end(w, 20))).hang;
-  assert.equal(judge(h, { form: true }), false);
+  assert.equal(gradeStrength(h, { form: 'good', effort: 'ok' }).grade, null);
 });
 
-test('자전거: 메인 구간을 전부 끝까지 타야 완주', () => {
+test('자전거 등급: 140 넘으면 유지, 여유면 바로 레벨업, 중간에 멈추면 평가 안 함', () => {
+  const b = { mainDone: true };
+  assert.equal(gradeBike(b, { followed: true, over140: false, effort: 'ok' }, true).grade, 'good');
+  assert.equal(gradeBike(b, { followed: true, over140: false, effort: 'easy' }, true).grade, 'great');
+  assert.equal(gradeBike(b, { followed: true, over140: true, effort: 'easy' }, true).grade, 'keep');
+  assert.equal(gradeBike(b, { followed: false, over140: false, effort: 'ok' }, true).grade, 'keep');
+  assert.equal(gradeBike({ mainDone: false }, {}, true).grade, 'miss');
+  assert.equal(gradeBike({ mainDone: false }, {}, false).grade, null);
+});
+
+test('지난번 기록 찾기 (오늘 것 제외)', () => {
+  const a = { date: '2026-10-12', type: 'strength', results: { push: { lv: 1, done: [15, 10, 7] } } };
+  const b = { date: '2026-10-14', type: 'strength', results: { push: { lv: 1, done: [15, 10, 8] } } };
+  assert.deepEqual(lastResult([a, b], 'push', b).done, [15, 10, 7]);
+  assert.equal(lastResult([b], 'push', b), null);
+});
+
+test('자전거: 루틴(메인) 구간을 전부 끝까지 타야 완주', () => {
   const b = bikeDay(5);
   const ends = b.map((s) => end(s, s.seconds));
   assert.equal(bikeMainDone(ends, b), true);
-  const hill = b.find((s) => s.zone === 'hill');
-  assert.equal(bikeMainDone(ends.map((e) => (e.step === hill ? end(hill, 20, 'skip') : e)), b), false);
+  const hard = b.find((s) => s.zone === 'hard');
+  assert.equal(bikeMainDone(ends.map((e) => (e.step === hard ? end(hard, 20, 'skip') : e)), b), false);
   assert.equal(bikeMainDone(ends.slice(0, 2), b), false);
+  const warm = b.find((s) => s.zone === 'build'); // 웜업은 건너뛰어도 완주
+  assert.equal(bikeMainDone(ends.map((e) => (e.step === warm ? end(warm, 20, 'skip') : e)), b), true);
 });
 
 test('기록 만들기', () => {
   const r = makeRecord({
     type: 'bike', mode: 'normal', condition: 'good', startedAt: '2026-10-10T13:00:00.000Z', endedAt: '2026-10-10T13:20:00.000Z',
-    completed: true, ends: [], steps: bikeDay(1), bikeLv: 1,
+    completed: true, ends: [], steps: bikeDay(1), bikeLv: 1, routine: 'interval',
   });
   assert.equal(r.totalSeconds, 1200);
   assert.equal(r.type, 'bike');
-  assert.deepEqual(r.bike, { lv: 1, mainDone: false, avgHr: null, resistance: null });
+  assert.deepEqual(r.bike, { lv: 1, routine: 'interval', mainDone: false, avgHr: null, resistance: null });
   assert.equal(r.judged, false);
 });

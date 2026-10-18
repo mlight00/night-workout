@@ -43,6 +43,20 @@ label.check input { width: 1.4rem; height: 1.4rem; accent-color: var(--ok); }
 .week div { text-align: center; font-size: 0.75rem; color: var(--muted); }
 .week b { display: flex; align-items: center; justify-content: center; margin: 0.25rem auto 0; width: 2.2rem; height: 2.2rem; border-radius: 50%; border: 1px dashed var(--line); font-size: 0.85rem; color: var(--sub); }
 .week b.strength { background: #1b3657; border: 0; color: #cfe3ff; } .week b.bike { background: #17402f; border: 0; color: #c8f0dc; }
+.week b.rest { background: #23272e; border: 0; color: var(--muted); } .week div.we { color: #8fa3b8; }
+button.pass { display: block; width: 100%; background: transparent; border: 1px solid var(--line); color: var(--sub); font-size: 1.05rem; padding: 0.8rem; border-radius: 999px; margin: 0.2rem 0 0.4rem; }
+.routines { margin-bottom: 0.6rem; }
+/* 완료 화면 평가 */
+.hint { margin-bottom: 0.6rem; }
+.sets-in { display: flex; flex-wrap: wrap; gap: 0.4rem 0.9rem; margin: 0.5rem 0 0.7rem; }
+.sets-in label { display: flex; align-items: center; gap: 0.4rem; font-size: 0.95rem; color: var(--sub); }
+.stepper { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+.stepper button { border: 0; border-radius: 0; padding: 0.35rem 0.75rem; font-size: 1.1rem; background: transparent; }
+.stepper b { min-width: 2.2ch; text-align: center; font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+.q { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin: 0.45rem 0; flex-wrap: wrap; }
+.q > span:first-child { color: var(--sub); font-size: 0.95rem; }
+.summary .score { font-size: 1.2rem; font-weight: 700; margin: 0.2rem 0; }
+.res .why { font-size: 0.95rem; margin: 0.2rem 0 0.3rem; }
 .week b.light { opacity: 0.6; } .week .today b { outline: 2px solid var(--accent); outline-offset: 2px; }
 .nav { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
 .nav button { padding: 1rem; font-size: 1rem; }
@@ -87,7 +101,10 @@ label.check input { width: 1.4rem; height: 1.4rem; accent-color: var(--ok); }
 .work.mini3d .wclock { font-size: min(22vh, 42vw); }
 .work.mini3d .wclock.long { font-size: min(18vh, 21vw); }
 /* 자전거 구간 색 */
-.work.zone-target .wsub { color: #7fe0b6; } .work.zone-hill .wsub { color: var(--hill); } .work.zone-hill .wclock { color: var(--hill); }
+.wsub { white-space: pre-line; }
+.work.zone-target .wsub, .work.zone-recover .wsub { color: #7fe0b6; } .work.zone-build .wsub { color: #9cc5ff; }
+.work.zone-hard .wsub, .work.zone-fast .wsub, .work.zone-climb .wsub { color: var(--hill); }
+.work.zone-hard .wclock, .work.zone-fast .wclock, .work.zone-climb .wclock { color: var(--hill); }
 @media (orientation: landscape) {
   .wclock { font-size: min(50vh, 40vw); }
   .wclock.long { font-size: min(50vh, 22vw); }

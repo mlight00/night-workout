@@ -42,8 +42,8 @@ function busy(s) {
     else if (s.setNo === 1) b.push([4, 7]); // "다 하면 화면을 탭하세요"
   }
   if (s.kind === 'ride') {
-    if (s.nextZone === 'hill') b.push([s.seconds - 10, s.seconds - 4]);
-    if (s.zone === 'target') for (let t = 300; t < s.seconds; t += 300) b.push([t, t + 6]); // 심박 확인
+    if (s.beepEnd) b.push([s.seconds - 10, s.seconds - 4]); // "10초 뒤 세게" 등
+    if (s.routine === 'steady' && s.zone === 'target') for (let t = 300; t < s.seconds; t += 300) b.push([t, t + 6]); // 심박 확인
   }
   return b;
 }
@@ -76,7 +76,9 @@ export function cuePlan(s) {
     });
   }
   if (s.kind === 'ride' && s.zone !== 'easy') {
-    return slots(s, 30, 90, SHORT_SEC).map((at, j) => item(at, j % c.length, `자세. ${speakable(c[j % c.length][1])}`));
+    // 자전거 웜업(편하게)만 길게 읽고, 나머지 구간은 짧게. 짧은 전력 구간(빠르게)엔 끼어들지 않는다
+    if (s.zone === 'fast') return [];
+    return slots(s, 30, 90, CUE_SEC).map((at, j) => item(at, j % c.length, `자세. ${speakable(c[j % c.length][1])}`));
   }
   let ats = [], first = 0;
   if (s.kind === 'rest') {
@@ -90,6 +92,37 @@ export function cuePlan(s) {
     const i = (first + j) % c.length;
     return item(at, i, (j === 0 ? '자세 포인트. ' : '') + postureLine(pose, i));
   });
+}
+
+// 자전거 구간이 시작될 때 — 저항은 화면에선 "+2", 말로는 "두 단계"
+const STEP_WORDS = ['', '한', '두', '세', '네'];
+export function rideStart(s) {
+  const t = secText(s.seconds);
+  switch (s.zone) {
+    case 'easy': return `자전거 웜업 ${t}. 저항은 가장 낮게, 편하게 돌리세요`;
+    case 'build': return `저항을 한두 단계 올리세요. ${t} 동안 숨이 조금 찰 때까지. 심박은 1, 2분 늦게 따라오니 숫자보다 느낌으로`;
+    case 'hard': return `${s.n === 1 ? '인터벌 시작. ' : ''}세게 ${t}. 저항 두 단계 올리고, 짧은 말만 할 수 있을 정도로`;
+    case 'fast': return `${s.n === 1 ? '빠르게 돌리기 시작. ' : ''}빠르게 ${t}. 저항은 그대로, 다리를 빠르게`;
+    case 'recover': return `편하게 ${t}. ${s.routine === 'speed' ? '천천히 돌리며' : '저항을 내리고'} 숨을 고르세요${s.n === s.of ? '. 마지막입니다' : ''}`;
+    case 'cool': return '쿨다운. 저항을 가장 낮게, 천천히 돌리세요';
+    default: break;
+  }
+  if (s.routine === 'pyramid') {
+    const k = STEP_WORDS[s.k];
+    if (s.dir === 'first') return `피라미드. ${secText(s.each)}마다 저항을 한 단계씩 올렸다가 내립니다. 지금은 기본 저항`;
+    if (s.dir === 'up') return `저항 한 단계 올리세요. 지금 기본보다 ${k} 단계`;
+    if (s.dir === 'same') return `그대로 유지. ${t} 더`;
+    return s.k ? `저항 한 단계 내리세요. 지금 기본보다 ${k} 단계` : '저항을 기본으로 내리세요. 마지막 구간';
+  }
+  return `꾸준히 ${t}. 심박 ${s.hr[0]}에서 ${s.hr[1]}, 대화할 수 있는 정도로`;
+}
+
+// 다음 구간이 더 힘들 때 10초 전 예고
+export function rideSoon(n) {
+  if (!n) return null;
+  if (n.zone === 'hard') return '10초 뒤 세게. 저항 올릴 준비';
+  if (n.zone === 'fast') return '10초 뒤 빠르게';
+  return '10초 뒤 저항 한 단계 올리기';
 }
 
 const target = (w) => (w.type === 'hold' ? `${w.target}초 버티기` : `${w.target}회`);
@@ -112,10 +145,7 @@ export function lineFor(e) {
         if (s.prep) return `준비. ${s.seconds}초 뒤 ${s.next.name} 시작합니다`;
         return `${s.after ? `${s.after}. ` : ''}완료. ${secText(s.seconds)} 휴식`;
       case 'ride':
-        if (s.zone === 'easy') return `웜업 ${secText(s.seconds)}. 저항은 낮게, 심박 ${s.hr[1]} 이하`;
-        if (s.zone === 'hill') return `언덕 구간 ${secText(s.seconds)}. 심박 ${s.hr[1]}을 넘지 않게`;
-        if (s.zone === 'cool') return '쿨다운. 저항을 가장 낮게, 천천히 돌리세요';
-        return `${s.afterHill ? '저항을 내리세요. ' : ''}목표 구간. 심박 ${s.hr[0]}에서 ${s.hr[1]}`;
+        return rideStart(s);
       default:
         return null; // work: 비프음이 시작 신호
     }
@@ -136,8 +166,8 @@ export function lineFor(e) {
       return s.setNo === 1 && el === 4 ? '다 하면 화면을 탭하세요' : null;
     }
     if (s.kind === 'ride') {
-      if (s.nextZone === 'hill' && r === 10) return '10초 뒤 언덕 구간. 저항을 두 단계 올리세요';
-      if (s.zone === 'target' && el > 0 && el % 300 === 0) return `심박 확인. 목표 ${s.hr[0]}에서 ${s.hr[1]}`;
+      if (s.beepEnd && r === 10) return rideSoon(s.upNext);
+      if (s.routine === 'steady' && s.zone === 'target' && el > 0 && el % 300 === 0) return `심박 확인. 목표 ${s.hr[0]}에서 ${s.hr[1]}`;
     }
     return null;
   }

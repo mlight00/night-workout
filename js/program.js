@@ -77,20 +77,34 @@ export const STRENGTH = [
   },
 ];
 
+// 자전거: main = 메인 시간(분), tier = 세게 하는 정도(1~4, 루틴마다 세게 하는 시간이 길어진다)
 export const BIKE = {
-  id: 'bike', group: '자전거', start: 1, warm: 240,
+  id: 'bike', group: '자전거', start: 1,
   levels: [
-    { main: 12, hills: 0, hillSec: 0 },
-    { main: 15, hills: 0, hillSec: 0 },
-    { main: 18, hills: 0, hillSec: 0 },
-    { main: 22, hills: 0, hillSec: 0 },
-    { main: 22, hills: 3, hillSec: 60 },
-    { main: 22, hills: 5, hillSec: 60 },
-    { main: 22, hills: 4, hillSec: 120 },
+    { main: 12, tier: 1 },
+    { main: 14, tier: 1 },
+    { main: 16, tier: 2 },
+    { main: 18, tier: 2 },
+    { main: 18, tier: 3 },
+    { main: 20, tier: 3 },
+    { main: 20, tier: 4 },
   ],
 };
 
-export const HR = { easyMax: 100, target: [105, 120], light: [105, 110], hill: [125, 135] };
+// 웜업: 편하게 2분 → 저항을 올리며 3분. 심박은 1~2분 늦게 따라오니 숫자보다 느낌(숨차는 정도)으로.
+export const BIKE_WARM = { easy: 120, build: 180 };
+export const HR = { easyMax: 100, build: [95, 110], target: [105, 120], light: [105, 110], hard: [125, 135], max: 140 };
+
+// 자전거 루틴 — 자전거 날마다 인터벌 → 피라미드 → 빠르게 돌리기 차례로. 꾸준히는 골라서만.
+//   interval cycle[tier] = [세게 초, 편하게 초] · speed cycle[tier] = [빠르게 초, 편하게 초]
+//   pyramid steps[tier] = 기본 저항에서 몇 단계 올리는지 (최대 +3 — 무거운 저항은 혈압을 크게 올린다)
+export const BIKE_ROUTINES = {
+  interval: { name: '인터벌', how: '세게 ↔ 편하게 반복', cycle: [[60, 120], [90, 120], [90, 90], [120, 120]] },
+  pyramid: { name: '피라미드', how: '저항을 한 단계씩 올렸다가 내리기', steps: [[0, 1, 2, 1, 0], [0, 1, 2, 3, 2, 1, 0], [0, 1, 2, 3, 3, 2, 1, 0], [0, 1, 2, 3, 3, 3, 2, 1, 0]] },
+  speed: { name: '빠르게 돌리기', how: '저항은 그대로, 짧게 빠르게 돌리기', cycle: [[30, 90], [30, 60], [40, 60], [45, 60]] },
+  steady: { name: '꾸준히', how: '심박 105~120을 유지하며 일정하게' },
+};
+export const BIKE_ROTATION = ['interval', 'pyramid', 'speed'];
 
 export const WARMUP_STRENGTH = [
   { name: '어깨 돌리기', sec: 40, pose: 'armcircle', say: '어깨 돌리기 40초. 앞으로 크게, 뒤로 크게' },
@@ -134,7 +148,7 @@ export function limitSec(l, setNo = 1) {
 }
 
 export function targetText(l) {
-  if (l.main != null) return `${l.main}분${l.hills ? ` · 언덕 ${l.hillSec / 60}분×${l.hills}` : ''}`;
+  if (l.main != null) return `${l.main}분 · 강도 ${l.tier}`;
   if (l.type === 'hold') return `${l.sec}초`;
   return Array.isArray(l.reps) ? `${l.reps.join('·')}회` : `${l.reps}회`;
 }

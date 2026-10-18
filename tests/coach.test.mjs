@@ -50,7 +50,7 @@ test('횟수 종목 첫 세트에만 탭 안내', () => {
 });
 
 test('6초 규칙: 실제 루틴 전체에서 끝나기 6초 전 이후의 말은 하나도 없다', () => {
-  for (const steps of [S, bikeDay(5)]) {
+  for (const steps of [S, ...['interval', 'pyramid', 'speed', 'steady'].map((r) => bikeDay(5, 'normal', r))]) {
     const t = createTimer(steps);
     let bad = 0;
     for (const e of t.start(0)) if (e.type === 'second' && e.remaining < QUIET_SEC && lineFor(e)) bad++;
@@ -61,20 +61,42 @@ test('6초 규칙: 실제 루틴 전체에서 끝나기 6초 전 이후의 말�
   }
 });
 
-test('자전거: 웜업·목표·언덕·쿨다운 안내', () => {
-  const b = bikeDay(5);
-  assert.equal(lineFor({ type: 'stepStart', step: b[0] }), '웜업 4분. 저항은 낮게, 심박 100 이하');
-  assert.equal(lineFor({ type: 'stepStart', step: b[1] }), '목표 구간. 심박 105에서 120');
-  const hill = b.find((x) => x.zone === 'hill');
-  assert.equal(lineFor({ type: 'stepStart', step: hill }), '언덕 구간 1분. 심박 135을 넘지 않게');
-  const after = b.find((x) => x.afterHill);
-  assert.match(lineFor({ type: 'stepStart', step: after }), /^저항을 내리세요/);
-  assert.equal(lineFor({ type: 'second', step: b[1], remaining: 10 }), '10초 뒤 언덕 구간. 저항을 두 단계 올리세요');
+test('자전거 웜업: 편하게 → 올리기, 심박이 늦게 따라온다고 알려 준다', () => {
+  const b = bikeDay(1);
+  assert.equal(lineFor({ type: 'stepStart', step: b[0] }), '자전거 웜업 2분. 저항은 가장 낮게, 편하게 돌리세요');
+  assert.match(lineFor({ type: 'stepStart', step: b[1] }), /^저항을 한두 단계 올리세요\. 3분 동안.*늦게 따라오니/);
   assert.equal(lineFor({ type: 'stepStart', step: b.find((x) => x.zone === 'cool') }), '쿨다운. 저항을 가장 낮게, 천천히 돌리세요');
 });
 
-test('자전거 목표 구간: 5분마다 심박 확인', () => {
-  const t = bikeDay(4)[1];
+test('인터벌: 세게·편하게 안내, 세게 10초 전 예고', () => {
+  const b = bikeDay(1, 'normal', 'interval');
+  const hard = b.filter((x) => x.zone === 'hard');
+  assert.equal(lineFor({ type: 'stepStart', step: hard[0] }), '인터벌 시작. 세게 1분. 저항 두 단계 올리고, 짧은 말만 할 수 있을 정도로');
+  assert.equal(lineFor({ type: 'stepStart', step: hard[1] }), '세게 1분. 저항 두 단계 올리고, 짧은 말만 할 수 있을 정도로');
+  const rec = b.filter((x) => x.zone === 'recover');
+  assert.equal(lineFor({ type: 'stepStart', step: rec[0] }), '편하게 2분. 저항을 내리고 숨을 고르세요');
+  assert.match(lineFor({ type: 'stepStart', step: rec.at(-1) }), /마지막입니다$/);
+  const before = b[b.indexOf(hard[1]) - 1];
+  assert.equal(lineFor({ type: 'second', step: before, remaining: 10 }), '10초 뒤 세게. 저항 올릴 준비');
+});
+
+test('피라미드: 올리기·유지·내리기 안내', () => {
+  const b = bikeDay(7, 'normal', 'pyramid').filter((x) => x.main);
+  assert.match(lineFor({ type: 'stepStart', step: b[0] }), /^피라미드\. 2분 10초마다/);
+  assert.equal(lineFor({ type: 'stepStart', step: b[1] }), '저항 한 단계 올리세요. 지금 기본보다 한 단계');
+  assert.equal(lineFor({ type: 'stepStart', step: b.find((x) => x.dir === 'same') }), '그대로 유지. 2분 10초 더');
+  assert.equal(lineFor({ type: 'stepStart', step: b.at(-2) }), '저항 한 단계 내리세요. 지금 기본보다 한 단계');
+  assert.equal(lineFor({ type: 'stepStart', step: b.at(-1) }), '저항을 기본으로 내리세요. 마지막 구간');
+});
+
+test('빠르게 돌리기: 저항은 그대로', () => {
+  const b = bikeDay(1, 'normal', 'speed');
+  assert.equal(lineFor({ type: 'stepStart', step: b.find((x) => x.zone === 'fast') }), '빠르게 돌리기 시작. 빠르게 30초. 저항은 그대로, 다리를 빠르게');
+  assert.match(lineFor({ type: 'stepStart', step: b.find((x) => x.zone === 'recover') }), /천천히 돌리며 숨을 고르세요/);
+});
+
+test('꾸준히: 5분마다 심박 확인', () => {
+  const t = bikeDay(4, 'normal', 'steady').find((x) => x.main);
   assert.equal(lineFor({ type: 'second', step: t, remaining: t.seconds - 300 }), '심박 확인. 목표 105에서 120');
   assert.equal(lineFor({ type: 'second', step: t, remaining: t.seconds - 299 }), null);
 });
@@ -114,11 +136,11 @@ test('웜업·쿨다운: 3D 자세가 있으면 8초부터 12초 간격, 설명 
   assert.deepEqual(cuePlan(S.find((x) => x.pose === 'armcircle')).map((c) => c.at), [8]);
   assert.deepEqual(cuePlan(S.find((x) => x.kind === 'warmup' && !x.pose)), []);
   assert.equal(cuePlan(bikeDay(1)[0]).length, 4); // 자전거 날 웜업 구간
-  assert.equal(cuePlan(bikeDay(1)[1])[0].at, 30); // 목표 구간도 짧게 계속
+  assert.equal(cuePlan(bikeDay(1)[1])[0].at, 30); // 올리기 구간부터는 짧게
 });
 
 test('자세 포인트는 끝나기 6초 전까지 다 말할 수 있는 시각에만', () => {
-  for (const steps of [S, bikeDay(5), strengthDay(initLevels().levels, 'light')]) {
+  for (const steps of [S, bikeDay(5), bikeDay(5, 'normal', 'speed'), bikeDay(5, 'normal', 'pyramid'), strengthDay(initLevels().levels, 'light')]) {
     for (const s of steps) for (const c of cuePlan(s)) assert.ok(c.at + 5 <= s.seconds - QUIET_SEC, `${s.kind} ${c.at}`);
   }
 });
@@ -135,8 +157,8 @@ test('운동 중에도 자세 포인트를 짧게 계속 — 정해진 안내와
   assert.equal(lineFor({ type: 'second', step: hang30, remaining: 10 }), '10초');
 });
 
-test('자전거 목표 구간: 90초마다 자세, 심박 확인(5분마다)과 겹치지 않게', () => {
-  const t = bikeDay(4)[1];
+test('자전거 꾸준히: 90초마다 자세, 심박 확인(5분마다)과 겹치지 않게', () => {
+  const t = bikeDay(4, 'normal', 'steady').find((x) => x.main);
   const ats = cuePlan(t).map((c) => c.at);
   assert.deepEqual(ats.slice(0, 4), [30, 120, 210, 306]);
   for (const at of ats) assert.ok(at < 300 || at % 300 >= 6, `${at}`);

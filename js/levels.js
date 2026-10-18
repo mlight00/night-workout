@@ -13,19 +13,22 @@ export function initLevels() {
   return { levels, pending: [] };
 }
 
-// results: { id: true|false } — light 모드면 아무것도 바꾸지 않는다
+// results: { id: 등급 } — great(+2) · good(+1) · keep(그대로, 실패 아님) · miss(실패), true/false도 받는다(good/miss).
+// light 모드면 아무것도 바꾸지 않는다. pending에는 점수만큼 id를 넣어 둔다(다음에 피곤하면 그만큼 무효).
+const CREDIT = { great: 2, good: 1, keep: 0 };
 export function applyResults(state, results, mode) {
   if (mode === 'light') return { ...state, pending: [] };
   const levels = { ...state.levels };
   const pending = [];
-  for (const [id, success] of Object.entries(results)) {
+  for (const [id, v] of Object.entries(results)) {
     const cur = levels[id];
-    if (!cur) continue;
-    if (success) {
-      levels[id] = { ...cur, ok: cur.ok + 1, ng: 0 };
-      pending.push(id);
-    } else {
+    const g = v === true ? 'good' : v === false ? 'miss' : v;
+    if (!cur || !g) continue;
+    if (g === 'miss') {
       levels[id] = { ...cur, ok: 0, ng: cur.ng + 1 };
+    } else {
+      levels[id] = { ...cur, ok: cur.ok + CREDIT[g], ng: 0 };
+      for (let i = 0; i < CREDIT[g]; i++) pending.push(id);
     }
   }
   return { levels, pending };

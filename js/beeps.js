@@ -5,7 +5,7 @@ export const COUNT_FROM = 3;
 
 // 이 단계가 끝나는 순간이 "운동 시작"인가
 export function needsCountdown(step) {
-  return step.kind === 'rest' || (step.kind === 'ride' && step.nextZone === 'hill');
+  return step.kind === 'rest' || (step.kind === 'ride' && !!step.beepEnd);
 }
 
 // remaining초 뒤에 단계가 끝날 때: 짧게 3번(3·2·1초 전) + 끝나는 순간 길게 1번

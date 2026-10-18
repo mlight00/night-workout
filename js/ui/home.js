@@ -1,21 +1,27 @@
 // 홈 화면 — 오늘 할 운동, 최근 7일, 체중 입력 권유
 
 import { $, esc } from './dom.js';
-import { STRENGTH, levelOf, targetText, planText } from '../program.js';
-import { weekStrip, restSuggested, doneToday, streakDays } from '../schedule.js';
+import { STRENGTH, BIKE_ROUTINES, BIKE_ROTATION, levelOf, planText } from '../program.js';
+import { weekStrip, restSuggested, doneToday, passedToday, streakDays, isWeekend, nextRoutine } from '../schedule.js';
 import { needsWeight } from '../stats.js';
 import { secText } from '../coach.js';
-import { totalSeconds, bikeDay } from '../timeline.js';
+import { totalSeconds, bikeDay, routineSummary } from '../timeline.js';
 
 const DOW = ['일', '월', '화', '수', '목', '금', '토'];
-const TYPE = { strength: '근', bike: '자', stretch: '스' };
+const TYPE = { strength: '근', bike: '자', stretch: '스', rest: '쉼' };
+const ROUTINE_CHIPS = [...BIKE_ROTATION, 'steady'];
 
-export function renderHome({ data, today, type, legacy, onWeight }) {
+export function renderHome({ data, today, type, routine, legacy, onWeight, onRoutine }) {
   const S = data.sessions, L = data.state.levels;
+  const weekend = isWeekend(today), done = doneToday(S, today), passed = passedToday(S, today);
 
   let banner = '';
-  if (doneToday(S, today)) banner = `<div class="banner">오늘 운동을 마쳤습니다. 내일 만나요.</div>`;
+  if (done) banner = `<div class="banner">오늘 운동을 마쳤습니다. 내일 만나요.</div>`;
+  else if (passed) banner = `<div class="banner">오늘은 쉬기로 했습니다. 푹 쉬세요. 마음이 바뀌면 아래에서 운동할 수 있어요.</div>`;
   else if (restSuggested(S, today)) banner = `<div class="banner warn">${streakDays(S, today)}일 연속 운동했습니다. 오늘은 쉬는 날을 권합니다. 가볍게 20분 걷기만 해도 충분합니다.</div>`;
+  else if (weekend) banner = `<div class="banner">주말이에요. 오늘 운동은 선택 — 해도 되고 쉬어도 됩니다.</div>`;
+  $('btnStart').textContent = passed ? '그래도 운동하기' : '오늘 운동 시작';
+  $('btnPass').hidden = !weekend || done || passed;
   if (!S.length && legacy) banner += `<div class="banner">이전 앱 기록 ${legacy}회는 그대로 보관되어 있습니다.</div>`;
   $('homeBanner').innerHTML = banner;
 
@@ -26,18 +32,20 @@ export function renderHome({ data, today, type, legacy, onWeight }) {
     }).join('');
     $('today').innerHTML = `<p class="today-type">오늘은 근력 날</p><ul class="today-list">${rows}</ul><p class="muted" style="margin-top:.6rem">웜업 3분 · 쿨다운 3분 포함 약 30분</p>`;
   } else {
-    const lv = L.bike.lv, l = levelOf('bike', lv);
+    const lv = L.bike.lv, turn = nextRoutine(S);
     $('today').innerHTML = `<p class="today-type">오늘은 자전거 날 <span class="lv">Lv${lv}</span></p>
-      <ul class="today-list"><li><span>목표 구간 (심박 105~120)</span><span>${targetText(l)}</span></li>
-      <li><span>웜업 · 쿨다운 · 스트레칭 포함</span><span>${secText(totalSeconds(bikeDay(lv)))}</span></li></ul>
-      <p class="muted" style="margin-top:.6rem">스마트워치로 심박을 보면서 타세요</p>`;
+      <div class="seg routines">${ROUTINE_CHIPS.map((k) => `<button data-r="${k}" aria-pressed="${k === routine}">${BIKE_ROUTINES[k].name}${k === turn ? ' · 차례' : ''}</button>`).join('')}</div>
+      <ul class="today-list"><li><span>${esc(BIKE_ROUTINES[routine].how)}</span></li><li><span>${esc(routineSummary(routine, lv))}</span></li>
+      <li><span>웜업 5분(편하게 → 올리기) · 쿨다운 · 스트레칭</span><span>${secText(totalSeconds(bikeDay(lv, 'normal', routine)))}</span></li></ul>
+      <p class="muted" style="margin-top:.6rem">심박은 1~2분 늦게 따라와요. 숫자보다 숨차는 느낌으로, 140은 넘기지 않기</p>`;
+    $('today').querySelector('.routines').onclick = (e) => { const b = e.target.closest('button'); if (b) onRoutine(b.dataset.r); };
   }
   $('btnSwap').textContent = type === 'strength' ? '오늘은 자전거로 바꾸기' : '오늘은 근력으로 바꾸기';
 
   $('week').innerHTML = weekStrip(S, today).map((d, i) => {
     const [y, m, dd] = d.date.split('-').map(Number);
     const w = DOW[new Date(y, m - 1, dd).getDay()];
-    return `<div class="${i === 6 ? 'today' : ''}">${w}<b class="${d.type || ''} ${d.light ? 'light' : ''}">${d.type ? TYPE[d.type] : ''}</b></div>`;
+    return `<div class="${i === 6 ? 'today' : ''} ${d.weekend ? 'we' : ''}">${w}<b class="${d.type || ''} ${d.light ? 'light' : ''}">${d.type ? TYPE[d.type] : ''}</b></div>`;
   }).join('');
 
   if (needsWeight(data.weights, today)) {

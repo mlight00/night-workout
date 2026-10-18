@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatClock } from '../js/format.js';
+import { formatClock, withRo } from '../js/format.js';
 
 test('60초 미만은 분 없이 초만', () => {
   assert.equal(formatClock(25), '25');
@@ -21,4 +21,13 @@ test('음수는 0으로 취급', () => {
 test('소수점은 올림 — 0.2초 남았으면 아직 1초로 보여야 한다', () => {
   assert.equal(formatClock(0.2), '1');
   assert.equal(formatClock(24.7), '25');
+});
+
+test('로/으로', () => {
+  assert.equal(withRo('14분'), '14분으로');
+  assert.equal(withRo('15·12·10회'), '15·12·10회로');
+  assert.equal(withRo('25초'), '25초로');
+  assert.equal(withRo('강도 1'), '강도 1로');
+  assert.equal(withRo('강도 3'), '강도 3으로');
+  assert.equal(withRo('스캐풀라 풀업 5회'), '스캐풀라 풀업 5회로');
 });

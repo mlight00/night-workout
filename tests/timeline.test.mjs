@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { strengthDay, bikeDay, stretchDay, totalSeconds } from '../js/timeline.js';
+import { strengthDay, bikeDay, stretchDay, totalSeconds, routineSummary } from '../js/timeline.js';
 import { initLevels, levelUp } from '../js/levels.js';
+import { levelOf } from '../js/program.js';
 
 const L = initLevels().levels;
 
@@ -72,36 +73,59 @@ test('근력 날 길이는 30분 안팎 (시작 레벨, 횟수 종목 제한시�
   assert.ok(t > 25 * 60 && t < 34 * 60, `${t}`);
 });
 
-test('자전거 레벨 1: 웜업 4분 → 목표 12분 → 쿨다운 2분 → 스트레칭 2개 = 20분', () => {
+test('자전거 날: 웜업 편하게 2분 → 올리기 3분 → 루틴 → 쿨다운 2분 → 스트레칭 2개', () => {
   const s = bikeDay(1);
-  assert.deepEqual(s.map((x) => [x.kind, x.zone || x.name, x.seconds]), [
-    ['ride', 'easy', 240], ['ride', 'target', 720], ['ride', 'cool', 120],
-    ['cooldown', '종아리 스트레칭', 60], ['cooldown', '허벅지 앞 스트레칭', 60],
+  assert.deepEqual(s.slice(0, 2).map((x) => [x.zone, x.seconds]), [['easy', 120], ['build', 180]]);
+  assert.deepEqual(s.slice(-3).map((x) => [x.kind, x.zone || x.name, x.seconds]), [
+    ['ride', 'cool', 120], ['cooldown', '종아리 스트레칭', 60], ['cooldown', '허벅지 앞 스트레칭', 60],
   ]);
-  assert.equal(totalSeconds(s), 1200);
-  assert.deepEqual(s[1].hr, [105, 120]);
+  assert.equal(totalSeconds(s.filter((x) => x.main)), 12 * 60);
+  assert.ok(s.filter((x) => x.main).every((x) => x.routine === 'interval'));
 });
 
-test('자전거 레벨 5: 언덕 1분 × 3, 메인 합계 22분, 언덕 앞 구간은 다음이 언덕임을 안다', () => {
-  const s = bikeDay(5);
-  const main = s.filter((x) => x.zone === 'target' || x.zone === 'hill');
-  assert.equal(main.filter((x) => x.zone === 'hill').length, 3);
-  assert.equal(totalSeconds(main), 22 * 60);
-  s.forEach((x, i) => { if (s[i + 1] && s[i + 1].zone === 'hill') assert.equal(x.nextZone, 'hill'); });
-  assert.deepEqual(main.find((x) => x.zone === 'hill').hr, [125, 135]);
-  assert.equal(main.filter((x) => x.afterHill).length, 3);
+test('인터벌 Lv1: 세게 1분 × 4, 사이 편하게 2분 — 세게는 심박 125~135', () => {
+  const m = bikeDay(1, 'normal', 'interval').filter((x) => x.main);
+  assert.deepEqual(m.map((x) => [x.zone, x.seconds]), [['hard', 60], ['recover', 120], ['hard', 60], ['recover', 120], ['hard', 60], ['recover', 120], ['hard', 60], ['recover', 120]]);
+  assert.deepEqual(m[0].hr, [125, 135]);
+  assert.equal(m[0].name, '세게 1/4');
 });
 
-test('자전거 가볍게: 메인 ⅔, 언덕 없음, 상한 110', () => {
-  const s = bikeDay(7, 'light');
-  assert.equal(s.filter((x) => x.zone === 'hill').length, 0);
-  const t = s.find((x) => x.zone === 'target');
-  assert.equal(t.seconds, 15 * 60);
-  assert.deepEqual(t.hr, [105, 110]);
+test('피라미드 Lv1: 기본 → +1 → +2 → +1 → 기본, 2분 20초씩 (남는 시간은 마지막에)', () => {
+  const m = bikeDay(1, 'normal', 'pyramid').filter((x) => x.main);
+  assert.deepEqual(m.map((x) => [x.k, x.dir, x.seconds]), [[0, 'first', 140], [1, 'up', 140], [2, 'up', 140], [1, 'down', 140], [0, 'down', 160]]);
+  assert.deepEqual(m[2].hr, [115, 130]);
 });
 
-test('자전거 날은 어느 레벨이든 30분을 넘지 않는다', () => {
-  for (let lv = 1; lv <= 7; lv++) assert.ok(totalSeconds(bikeDay(lv)) <= 30 * 60, `Lv${lv}`);
+test('빠르게 돌리기 Lv1: 빠르게 30초 × 6, 사이 편하게 1분 30초 — 저항은 그대로', () => {
+  const m = bikeDay(1, 'normal', 'speed').filter((x) => x.main);
+  assert.equal(m.filter((x) => x.zone === 'fast').length, 6);
+  assert.ok(m.filter((x) => x.zone === 'fast').every((x) => x.seconds === 30 && x.res === '그대로'));
+  assert.equal(totalSeconds(m), 12 * 60);
+});
+
+test('자전거 가볍게: 루틴과 상관없이 꾸준히, 메인 ⅔, 상한 110', () => {
+  const s = bikeDay(7, 'light', 'interval');
+  const m = s.filter((x) => x.main);
+  assert.equal(m.length, 1);
+  assert.equal(m[0].routine, 'steady');
+  assert.equal(m[0].seconds, Math.round((20 * 2) / 3) * 60);
+  assert.deepEqual(m[0].hr, [105, 110]);
+});
+
+test('자전거 날은 어느 레벨·루틴이든 30분을 넘지 않고, 심박 안내는 135를 넘지 않는다', () => {
+  for (const r of ['interval', 'pyramid', 'speed', 'steady']) for (let lv = 1; lv <= 7; lv++) {
+    const s = bikeDay(lv, 'normal', r);
+    assert.ok(totalSeconds(s) <= 30 * 60, `${r} Lv${lv}`);
+    assert.ok(s.filter((x) => x.kind === 'ride').every((x) => x.hr[1] <= 135), `${r} Lv${lv}`);
+    assert.equal(totalSeconds(s.filter((x) => x.main)), levelOf('bike', lv).main * 60, `${r} Lv${lv}`);
+  }
+});
+
+test('루틴 요약 문구', () => {
+  assert.equal(routineSummary('interval', 1), '세게 1분 × 4번 · 사이 편하게 2분');
+  assert.equal(routineSummary('pyramid', 1), '저항 기본 → +2 → 기본, 2분 20초씩');
+  assert.equal(routineSummary('speed', 1), '빠르게 30초 × 6번 · 사이 편하게 1분 30초');
+  assert.equal(routineSummary('steady', 1), '12분 동안 심박 105~120');
 });
 
 test('스트레칭만 하는 날은 쿨다운 단계만', () => {
