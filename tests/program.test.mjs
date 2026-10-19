@@ -2,19 +2,26 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { STRENGTH, BIKE, BIKE_ROUTINES, levelOf, maxLevel, limitSec, targetText, planText, repsFor, WARMUP_STRENGTH, COOLDOWN_STRENGTH, COOLDOWN_BIKE } from '../js/program.js';
 
-test('근력 5종목, 순서는 매달리기 → 팔굽혀펴기 → 스쿼트 → 딥스 → 다리 들기', () => {
-  assert.deepEqual(STRENGTH.map((e) => e.id), ['hang', 'push', 'squat', 'dip', 'leg']);
+test('근력 5종목, 하체(스쿼트)가 맨 앞 — 세션 처음 종목이 가장 많이 는다(ACSM 2026), 밀기·당기기 번갈아', () => {
+  assert.deepEqual(STRENGTH.map((e) => e.id), ['squat', 'push', 'hang', 'dip', 'leg']);
 });
 
-test('레벨 사다리 길이: 매달리기 10, 팔굽혀펴기 7, 스쿼트 6, 딥스 8, 다리 들기 7, 자전거 7', () => {
-  assert.deepEqual([...STRENGTH, BIKE].map((e) => maxLevel(e.id)), [10, 7, 6, 8, 7, 7]);
+test('레벨 사다리 길이: 스쿼트 6, 팔굽혀펴기 9, 매달리기 10, 딥스 8, 다리 들기 7, 자전거 7', () => {
+  assert.deepEqual([...STRENGTH, BIKE].map((e) => maxLevel(e.id)), [6, 9, 10, 8, 7, 7]);
 });
 
-test('시작 레벨: 데드행 20초, 팔굽혀펴기 15·10·8회, 의자 스쿼트 10회, 딥스 버티기 15초, 무릎 들고 버티기 15초', () => {
+test('시작 레벨: 의자 스쿼트 10회, 팔굽혀펴기 15·10·8회(아래에 쉬운 단계 2개), 데드행 20초, 딥스 버티기 15초, 무릎 들고 버티기 15초', () => {
   const start = STRENGTH.map((e) => levelOf(e.id, e.start));
   assert.deepEqual(start.map((l) => [l.name, l.type === 'hold' ? l.sec : l.reps]), [
-    ['데드행', 20], ['팔굽혀펴기', [15, 10, 8]], ['의자 스쿼트', 10], ['딥스 버티기', 15], ['무릎 들고 버티기', 15],
+    ['의자 스쿼트', 10], ['팔굽혀펴기', [15, 10, 8]], ['데드행', 20], ['딥스 버티기', 15], ['무릎 들고 버티기', 15],
   ]);
+  assert.deepEqual([1, 2].map((lv) => levelOf('push', lv).reps), [[10, 8, 6], [12, 10, 8]]);
+});
+
+test('스쿼트·팔굽혀펴기 팁은 "천천히 내리고 힘차게" (근비대 + 순발력)', () => {
+  for (const id of ['squat', 'push']) for (const l of STRENGTH.find((e) => e.id === id).levels) {
+    if (l.pose !== 'slowsquat') assert.match(l.tip, /천천히.*힘차게/, `${id} ${l.name}`);
+  }
 });
 
 test('모든 레벨은 3D 자세와 한 줄 팁을 가진다', () => {
@@ -38,8 +45,8 @@ test('levelOf는 범위를 벗어나면 양 끝으로 맞춘다', () => {
 });
 
 test('횟수 종목 제한시간 = 횟수 × 1회 시간 + 10초', () => {
-  assert.equal(limitSec(levelOf('push', 1)), 15 * 4 + 10);
-  assert.equal(limitSec(levelOf('push', 1), 3), 8 * 4 + 10);
+  assert.equal(limitSec(levelOf('push', 3)), 15 * 4 + 10);
+  assert.equal(limitSec(levelOf('push', 3), 3), 8 * 4 + 10);
   assert.equal(limitSec(levelOf('hang', 7)), 3 * 10 + 10);
 });
 
@@ -61,8 +68,8 @@ test('웜업 3분, 근력 쿨다운 3분, 자전거 스트레칭 2분', () => {
 
 test('목표 표시 문구', () => {
   assert.equal(targetText(levelOf('hang', 2)), '25초');
-  assert.equal(targetText(levelOf('push', 1)), '15·10·8회');
-  assert.equal(planText(levelOf('push', 1)), '15·10·8회');
+  assert.equal(targetText(levelOf('push', 3)), '15·10·8회');
+  assert.equal(planText(levelOf('push', 3)), '15·10·8회');
   assert.equal(planText(levelOf('squat', 1)), '10회 × 3');
   assert.equal(targetText(levelOf('bike', 1)), '12분 · 강도 1');
   assert.equal(targetText(levelOf('bike', 7)), '20분 · 강도 4');
@@ -71,8 +78,8 @@ test('목표 표시 문구', () => {
 test('팔굽혀펴기: 경사(의자) 팔굽혀펴기는 없고, 세트별 목표 횟수', () => {
   const push = STRENGTH.find((e) => e.id === 'push');
   assert.ok(push.levels.every((l) => l.pose === 'pushup' && Array.isArray(l.reps) && l.reps.length === 3));
-  assert.deepEqual([1, 2, 3].map((n) => repsFor(levelOf('push', 1), n)), [15, 10, 8]);
-  assert.equal(repsFor(levelOf('push', 1), 4), 8); // 세트가 더 많으면 마지막 목표
+  assert.deepEqual([1, 2, 3].map((n) => repsFor(levelOf('push', 3), n)), [15, 10, 8]);
+  assert.equal(repsFor(levelOf('push', 3), 4), 8); // 세트가 더 많으면 마지막 목표
   assert.equal(repsFor(levelOf('squat', 1), 2), 10);
 });
 

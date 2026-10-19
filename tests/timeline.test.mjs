@@ -33,10 +33,10 @@ test('마지막 운동 뒤에는 휴식 없이 바로 쿨다운', () => {
   assert.equal(s[last + 1].kind, 'cooldown');
 });
 
-test('시작 레벨 근력 날의 첫 운동은 데드행 20초, 휴식은 팔굽혀펴기만 90초', () => {
+test('시작 레벨 근력 날의 첫 운동은 의자 스쿼트 10회, 휴식은 팔굽혀펴기만 90초', () => {
   const s = strengthDay(L);
   const w = s.find((x) => x.kind === 'work');
-  assert.deepEqual([w.name, w.type, w.seconds, w.setNo, w.totalSets, w.pose], ['데드행', 'hold', 20, 1, 3, 'deadhang']);
+  assert.deepEqual([w.name, w.type, w.seconds, w.setNo, w.totalSets, w.pose], ['의자 스쿼트', 'reps', 50, 1, 3, 'chairsquat']);
   const rests = s.filter((x) => x.kind === 'rest' && !x.prep);
   assert.ok(rests.filter((r) => r.seconds === 90).length === 3);
 });

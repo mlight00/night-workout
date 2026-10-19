@@ -10,6 +10,9 @@ import { withRo } from '../format.js';
 const ORDER = STRENGTH.map((e) => e.id);
 const FORM = [['good', '바르게'], ['some', '가끔 흐트러짐'], ['bad', '많이 흐트러짐']];
 const EFFORT = [['easy', '여유'], ['ok', '적당'], ['hard', '한계']];
+// 근력은 "몇 개(몇 초) 더 할 수 있었나" — ACSM 2026: 2~3개 여유를 남기는 게 실패까지 가는 것과 효과가 같다
+const RIR = [['easy', '4개 이상'], ['ok', '2~3개'], ['hard', '0~1개']];
+const SIR = [['easy', '10초 이상'], ['ok', '5초쯤'], ['hard', '거의 못 버팀']];
 const TAG = { great: 'ok', good: 'ok', keep: 'mid', miss: 'ng' };
 
 const targetsOf = (r) => (r.targets && r.targets.length ? r.targets : Array(r.totalSets).fill(r.target));
@@ -44,7 +47,7 @@ const choice = (k, label, opts, cur) => `<div class="q"><span>${label}</span><sp
 // ---- 1) 평가 입력 — 기본값이 "계획대로 했다"라서 그대로면 바로 저장 -------------------
 function renderChecks(ctx) {
   const { rec } = ctx;
-  let html = '<p class="sub hint">실제와 다른 것만 고쳐 주세요. 계획대로 했다면 그대로 저장하면 됩니다.</p>';
+  let html = `<p class="sub hint">실제와 다른 것만 고쳐 주세요. 계획대로 했다면 그대로 저장하면 됩니다.${rec.type === 'strength' ? '<br>마지막 세트에 <b>2~3개 여유</b>가 남았으면 딱 좋은 강도입니다 (끝까지 짜낼 필요 없음).' : ''}</p>`;
   if (rec.type === 'strength') {
     for (const id of ORDER) {
       const r = rec.results[id];
@@ -58,7 +61,7 @@ function renderChecks(ctx) {
       const t = targetsOf(r);
       html += `<p class="sub">${r.type === 'hold' ? '버틴 시간' : '한 횟수'} — 목표 ${t.join(' · ')}${unit(r)}</p>
         <div class="sets-in">${defaultDone(r).map((d, i) => `<label>${i + 1}세트 ${stepper(d, r.type === 'hold' ? r.target : t[i] * 2 + 5)}</label>`).join('')}</div>
-        ${choice('form', '자세', FORM, 'good')}${choice('effort', '힘든 정도', EFFORT, 'ok')}</div>`;
+        ${choice('form', '자세', FORM, 'good')}${r.type === 'hold' ? choice('effort', '마지막 세트, 몇 초 더?', SIR, 'ok') : choice('effort', '마지막 세트, 몇 개 더?', RIR, 'ok')}</div>`;
     }
   } else {
     const b = rec.bike;

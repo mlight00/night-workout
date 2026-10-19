@@ -25,22 +25,30 @@ test('휴식 시작: 완료 + 휴식 시간, 매달리기 뒤엔 발판 안내�
 });
 
 test('준비 단계: 무엇을 시작하는지 말한다', () => {
-  assert.equal(lineFor({ type: 'stepStart', step: S[3] }), '준비. 20초 뒤 데드행 시작합니다');
+  assert.equal(lineFor({ type: 'stepStart', step: S[3] }), '준비. 20초 뒤 의자 스쿼트 시작합니다');
 });
 
 test('휴식 15초 전에 다음 운동을 미리 안내한다', () => {
   assert.equal(lineFor({ type: 'second', step: rest, remaining: 15 }), announceNext(rest.next));
-  assert.match(announceNext(rest.next), /^다음은 데드행, 두 번째 세트\. 20초 버티기$/);
+  assert.match(announceNext(rest.next), /^다음은 의자 스쿼트, 두 번째 세트\. 10회$/);
 });
 
 test('딥스 안내에는 "팔꿈치 90도까지만"이 붙는다', () => {
   const d = S.find((x) => x.exId === 'dip');
-  assert.match(announceNext(d), /팔꿈치 90도까지만$/);
+  assert.match(announceNext(d), /팔꿈치 90도까지만/);
+});
+
+test('첫 세트 예고엔 "끝까지 짜내지 않기" (ACSM 2026: 2~3개 여유면 충분)', () => {
+  const p = S.filter((x) => x.exId === 'push');
+  assert.match(announceNext(p[0]), /마지막 한 개를 짜내지는 마세요$/);
+  assert.doesNotMatch(announceNext(p[1]), /짜내지/);
+  assert.match(announceNext(S.find((x) => x.exId === 'hang')), /숨 쉬면서, 끝까지 짜내지는 마세요$/);
 });
 
 test('버티기 중: 5초 지나면 자세 포인트 + 숨 안내, 10초 남으면 "10초"', () => {
-  assert.equal(lineFor({ type: 'second', step: work, remaining: 15 }), '어깨를 귀에서 멀리. 숨 참지 마세요');
-  assert.equal(lineFor({ type: 'second', step: work, remaining: 10 }), '10초');
+  const h = S.find((x) => x.exId === 'hang');
+  assert.equal(lineFor({ type: 'second', step: h, remaining: 15 }), '어깨를 귀에서 멀리. 숨 참지 마세요');
+  assert.equal(lineFor({ type: 'second', step: h, remaining: 10 }), '10초');
 });
 
 test('횟수 종목 첫 세트에만 탭 안내', () => {
@@ -127,7 +135,7 @@ test('휴식 중 자세 포인트: 10초·22초에, 세트마다 다른 포인�
 test('준비 단계: 5초에 첫 자세 포인트 (같은 운동 이름을 두 번 말하지 않는다)', () => {
   const prep = S.find((x) => x.prep);
   assert.deepEqual(cuePlan(prep).map((c) => [c.at, c.i]), [[5, 0]]);
-  assert.match(lineFor({ type: 'second', step: prep, remaining: 15 }), /^자세 포인트\. 어깨를 귀에서 멀리/);
+  assert.match(lineFor({ type: 'second', step: prep, remaining: 15 }), /^자세 포인트\. 엉덩이를 뒤로 빼며 앉기/);
 });
 
 test('웜업·쿨다운: 3D 자세가 있으면 8초부터 12초 간격, 설명 개수만큼', () => {
@@ -150,7 +158,8 @@ test('운동 중에도 자세 포인트를 짧게 계속 — 정해진 안내와
   const plan = cuePlan(p[0]);
   assert.deepEqual(plan.map((c) => c.at), [9, 19, 29, 39, 49, 59]);
   assert.equal(plan[0].text, '머리부터 발목까지 일직선');
-  assert.equal(plan[4].i, 0); // 설명을 돌아가며
+  assert.equal(plan[1].text, '천천히 내려가고 힘차게 밀기');
+  assert.equal(plan[5].i, 0); // 설명을 돌아가며
   assert.equal(lineFor({ type: 'second', step: p[0], remaining: p[0].seconds - 4 }), '다 하면 화면을 탭하세요');
   const hang30 = strengthDay({ ...initLevels().levels, hang: { lv: 3, ok: 0, ng: 0 } }).find((x) => x.exId === 'hang');
   assert.deepEqual(cuePlan(hang30).map((c) => c.at), [5, 15]); // "10초"(20초 경과)와 안 겹침

@@ -34,6 +34,8 @@ export function defaultDone(r) {
 }
 
 // 근력 한 종목: ev = { done: [세트별 실제 횟수·초], form: good|some|bad, effort: easy|ok|hard }
+//   effort = 마지막 세트에 남은 여유 — easy 4개 이상(10초 이상) · ok 2~3개(5초쯤) · hard 0~1개
+//   ACSM 2026: 실패까지 갈 필요 없고 2~3개 여유가 충분한 강도 → ok가 "딱 좋음", hard는 레벨 유지
 // → { grade, why } (중단한 종목은 grade null — 레벨에 반영하지 않음)
 export function gradeStrength(r, ev) {
   if (r.setsDone < r.totalSets) return { grade: null, why: '중간에 멈춰서 이번엔 평가하지 않습니다' };
@@ -46,10 +48,10 @@ export function gradeStrength(r, ev) {
   }
   if (ev.form === 'bad') return { grade: 'miss', why: '자세가 많이 흐트러졌어요 — 바른 자세로 채우는 게 먼저입니다' };
   if (ev.form === 'some') return { grade: 'keep', why: '목표는 채웠지만 자세가 가끔 흐트러졌어요 — 이 레벨에서 자세부터 다듬어요' };
-  if (ev.effort === 'hard') return { grade: 'keep', why: '목표는 채웠지만 한계였어요 — 이 레벨을 조금 더 익혀요' };
+  if (ev.effort === 'hard') return { grade: 'keep', why: '목표는 채웠지만 여유가 거의 없었어요 — 2~3개 남길 수 있을 때까지 이 레벨 유지' };
   const extra = done.every((d, i) => d >= Math.ceil(t[i] * 1.2));
-  if (ev.effort === 'easy' || extra) return { grade: 'great', why: extra && ev.effort !== 'easy' ? '목표보다 20% 이상 더 했어요 — 바로 올려도 됩니다' : '여유 있게 채웠어요 — 바로 올려도 됩니다' };
-  return { grade: 'good', why: '바른 자세로 목표를 채웠어요' };
+  if (ev.effort === 'easy' || extra) return { grade: 'great', why: extra && ev.effort !== 'easy' ? '목표보다 20% 이상 더 했어요 — 바로 올려도 됩니다' : '여유가 많이 남았어요 — 바로 올려도 됩니다' };
+  return { grade: 'good', why: '바른 자세로, 2~3개 여유를 남기고 채웠어요 — 딱 좋은 강도' };
 }
 
 // 자전거: ev = { followed: 안내대로 따라 했다, over140: 심박이 140을 넘었다, effort }

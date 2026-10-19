@@ -127,8 +127,10 @@ export function rideSoon(n) {
 
 const target = (w) => (w.type === 'hold' ? `${w.target}초 버티기` : `${w.target}회`);
 
+// 첫 세트 예고엔 "끝까지 짜내지 않기"를 붙인다 (ACSM 2026: 2~3개 여유면 충분, 실패까지는 혈압·부상 위험)
 export function announceNext(w) {
-  return `다음은 ${w.name}, ${SET_WORDS[w.setNo]} 번째 세트. ${target(w)}${w.cue ? `. ${w.cue}` : ''}`;
+  const easy = w.setNo === 1 ? (w.type === 'hold' ? '. 숨 쉬면서, 끝까지 짜내지는 마세요' : '. 마지막 한 개를 짜내지는 마세요') : '';
+  return `다음은 ${w.name}, ${SET_WORDS[w.setNo]} 번째 세트. ${target(w)}${w.cue ? `. ${w.cue}` : ''}${easy}`;
 }
 
 export function lineFor(e) {

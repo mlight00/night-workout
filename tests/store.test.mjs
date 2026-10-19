@@ -10,8 +10,8 @@ const fake = () => {
 test('처음엔 빈 문서 — 시작 레벨이 들어 있다', () => {
   const d = createStore(fake()).load();
   assert.equal(d.v, 2);
-  assert.equal(d.state.levels.push.lv, 1);
-  assert.equal(d.ladder, 2);
+  assert.equal(d.state.levels.push.lv, 3);
+  assert.equal(d.ladder, 3);
   assert.ok(validate(d));
 });
 
@@ -82,14 +82,14 @@ test('예전 팔굽혀펴기 레벨은 새 사다리로 옮기고, 다른 기록
   old.weights = [{ date: '2026-10-11', kg: 90.2 }];
   st.setItem(KEY, JSON.stringify(old));
   const d = createStore(st).load();
-  assert.deepEqual(d.state.levels.push, { lv: 1, ok: 0, ng: 0 });
+  assert.deepEqual(d.state.levels.push, { lv: 3, ok: 0, ng: 0 });
   assert.deepEqual(d.state.levels.hang, { lv: 2, ok: 1, ng: 0 });
   assert.deepEqual(d.state.pending, ['hang']);
-  assert.equal(d.sessions[0].results.push.lv, 1);
+  assert.equal(d.sessions[0].results.push.lv, 3);
   assert.equal(d.sessions[0].results.hang.lv, 1);
   assert.equal(d.sessions.length, 2);
   assert.equal(d.weights[0].kg, 90.2);
-  assert.equal(d.ladder, 2);
+  assert.equal(d.ladder, 3);
   // 한 번 옮긴 기록은 다시 옮기지 않는다
   d.state.levels.push = { lv: 5, ok: 0, ng: 0 };
   st.setItem(KEY, JSON.stringify(d));
@@ -97,10 +97,21 @@ test('예전 팔굽혀펴기 레벨은 새 사다리로 옮기고, 다른 기록
 });
 
 test('예전 높은 레벨도 비슷한 난이도로 (12회×3 → 15·12·10, 20회×3 → 25·20·15)', () => {
-  for (const [from, to] of [[5, 2], [6, 4], [7, 7]]) {
+  for (const [from, to] of [[5, 4], [6, 6], [7, 9]]) {
     const d = emptyData();
     delete d.ladder;
     d.state.levels.push = { lv: from, ok: 0, ng: 0 };
     assert.equal(importJson(JSON.stringify(d)).state.levels.push.lv, to);
   }
+});
+
+test('사다리 2판 기록: 팔굽혀펴기 레벨 +2 (쉬운 단계 2개가 아래에 생김), 진행 점수는 그대로', () => {
+  const d = emptyData();
+  d.ladder = 2;
+  d.state.levels.push = { lv: 1, ok: 1, ng: 0 };
+  d.sessions = [{ date: '2026-10-16', type: 'strength', results: { push: { lv: 1, done: [15, 10, 8] } } }];
+  const m = importJson(JSON.stringify(d));
+  assert.deepEqual(m.state.levels.push, { lv: 3, ok: 1, ng: 0 });
+  assert.equal(m.sessions[0].results.push.lv, 3);
+  assert.equal(m.ladder, 3);
 });

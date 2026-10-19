@@ -20,7 +20,7 @@ test('버티기: 세 세트 모두 끝까지 → 완주, 하나라도 일찍 끝
 
 test('웜업·휴식·쿨다운은 결과에 들어가지 않는다', () => {
   const r = strengthResults(S.slice(0, 6).map((s) => end(s, s.seconds)));
-  assert.deepEqual(Object.keys(r), ['hang']);
+  assert.deepEqual(Object.keys(r), ['squat']);
 });
 
 test('평가 기본값: 횟수는 세트별 목표, 버티기는 타이머가 잰 초', () => {
