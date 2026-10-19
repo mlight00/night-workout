@@ -10,6 +10,7 @@ import { speakable } from '../coach.js';
 const GROUPS = [
   ...STRENGTH.map((e) => ({ id: e.id, name: e.group, poses: [...new Set(e.levels.map((l) => l.pose))] })),
   { id: 'bike', name: '자전거', poses: ['bike'] },
+  { id: 'wall', name: '벽에 기대 버티기', poses: ['wallsit'] },
   { id: 'stretch', name: '웜업·스트레칭', poses: ['march', 'armcircle', 'st_chest', 'st_lat', 'st_calf', 'st_quad'] },
 ];
 const VIEWS = [[62, '비스듬히'], [90, '측면'], [0, '정면'], [180, '뒤']];

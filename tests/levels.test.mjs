@@ -4,7 +4,7 @@ import { initLevels, applyResults, applyCondition, canUp, suggestDown, canDown, 
 
 test('시작 레벨: 팔굽혀펴기만 3, 나머지 1', () => {
   const s = initLevels();
-  assert.deepEqual(Object.fromEntries(Object.entries(s.levels).map(([k, v]) => [k, v.lv])), { hang: 1, push: 3, squat: 1, dip: 1, leg: 1, bike: 1 });
+  assert.deepEqual(Object.fromEntries(Object.entries(s.levels).map(([k, v]) => [k, v.lv])), { squat: 1, push: 3, hang: 1, bridge: 1, dip: 1, leg: 1, bike: 1, wall: 1 });
   assert.deepEqual(s.pending, []);
 });
 

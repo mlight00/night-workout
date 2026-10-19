@@ -58,7 +58,7 @@ test('횟수 종목 첫 세트에만 탭 안내', () => {
 });
 
 test('6초 규칙: 실제 루틴 전체에서 끝나기 6초 전 이후의 말은 하나도 없다', () => {
-  for (const steps of [S, ...['interval', 'pyramid', 'speed', 'steady'].map((r) => bikeDay(5, 'normal', r))]) {
+  for (const steps of [S, ...['interval', 'pyramid', 'speed', 'steady'].map((r) => bikeDay(5, 'normal', r, 6))]) {
     const t = createTimer(steps);
     let bad = 0;
     for (const e of t.start(0)) if (e.type === 'second' && e.remaining < QUIET_SEC && lineFor(e)) bad++;

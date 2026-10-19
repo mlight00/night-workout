@@ -8,21 +8,19 @@
 //                        zone = easy·build(웜업) | target·climb(꾸준히·피라미드) | hard·recover(인터벌) | fast·recover(빠르게) | cool
 
 import {
-  STRENGTH, BIKE, HR, SETS, LIGHT_SETS, LIGHT_REST_PLUS, PREP_SEC,
+  STRENGTH, BIKE, WALL, HR, SETS, LIGHT_SETS, LIGHT_REST_PLUS, PREP_SEC,
   WARMUP_STRENGTH, COOLDOWN_STRENGTH, COOLDOWN_BIKE, BIKE_COOL_RIDE, BIKE_WARM, BIKE_ROUTINES, BIKE_ROTATION,
   levelOf, limitSec, repsFor,
 } from './program.js';
 
 const item = (kind) => (x) => ({ kind, name: x.name, seconds: x.sec, pose: x.pose, say: x.say });
 
-export function strengthDay(levels, mode = 'normal') {
-  const light = mode === 'light';
+// 종목들의 세트 → 준비 + (운동, 휴식, 운동, …) 단계
+function exerciseBlock(exs, lvOf, light) {
   const sets = light ? LIGHT_SETS : SETS;
-  const steps = WARMUP_STRENGTH.map(item('warmup'));
-
   const works = [];
-  for (const ex of STRENGTH) {
-    const lv = levels[ex.id].lv;
+  for (const ex of exs) {
+    const lv = lvOf(ex.id);
     const l = levelOf(ex.id, lv);
     for (let setNo = 1; setNo <= sets; setNo++) {
       works.push({
@@ -34,21 +32,26 @@ export function strengthDay(levels, mode = 'normal') {
       });
     }
   }
-
-  steps.push({ kind: 'rest', prep: true, name: '준비', seconds: PREP_SEC, next: works[0] });
+  const steps = [{ kind: 'rest', prep: true, name: '준비', seconds: PREP_SEC, next: works[0] }];
   works.forEach((w, i) => {
     steps.push(w);
     const next = works[i + 1];
     if (next) steps.push({ kind: 'rest', name: '휴식', seconds: w.rest, after: w.after, next });
   });
-
-  steps.push(...COOLDOWN_STRENGTH.map(item('cooldown')));
   return steps;
 }
 
-// 자전거 날: 웜업(편하게 → 올리기) → 루틴 → 쿨다운 → 스트레칭.
-// 가볍게 모드는 루틴과 상관없이 "꾸준히"(낮은 심박, 메인 ⅔).
-export function bikeDay(bikeLv, mode = 'normal', routine = BIKE_ROTATION[0]) {
+export function strengthDay(levels, mode = 'normal') {
+  return [
+    ...WARMUP_STRENGTH.map(item('warmup')),
+    ...exerciseBlock(STRENGTH, (id) => levels[id].lv, mode === 'light'),
+    ...COOLDOWN_STRENGTH.map(item('cooldown')),
+  ];
+}
+
+// 자전거 날: 웜업(편하게 → 올리기) → 루틴 → 쿨다운 → (벽에 기대 버티기) → 스트레칭.
+// 가볍게 모드는 루틴과 상관없이 "꾸준히"(낮은 심박, 메인 ⅔). wallLv를 주면 쿨다운 뒤에 벽에 기대 버티기 세트.
+export function bikeDay(bikeLv, mode = 'normal', routine = BIKE_ROTATION[0], wallLv = null) {
   const light = mode === 'light';
   const l = levelOf('bike', bikeLv);
   const main = (light ? Math.round((l.main * 2) / 3) : l.main) * 60;
@@ -69,7 +72,8 @@ export function bikeDay(bikeLv, mode = 'normal', routine = BIKE_ROTATION[0]) {
     x.upNext = { zone: n.zone, name: n.name, res: n.res, dir: n.dir };
     x.beepEnd = n.zone === 'hard' || n.zone === 'fast' || (n.zone === 'climb' && n.dir === 'up');
   });
-  return [...segs, ...COOLDOWN_BIKE.map(item('cooldown'))];
+  const wall = wallLv ? exerciseBlock([WALL], () => wallLv, light) : [];
+  return [...segs, ...wall, ...COOLDOWN_BIKE.map(item('cooldown'))];
 }
 
 const hrUp = (k) => [Math.min(105 + 5 * k, HR.hard[0]), Math.min(120 + 5 * k, HR.hard[1])];

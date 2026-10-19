@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { weekStart, needsWeight, addWeight, weightSeries, bikeSeries, levelSeries } from '../js/stats.js';
+import { weekStart, needsWeight, addWeight, weightSeries, bikeSeries, levelSeries, aerobicWeek, addWalk, undoWalk, aerobicSeries } from '../js/stats.js';
 import { lineChart } from '../js/charts.js';
 
 test('주의 시작은 월요일 (2026-10-10은 토요일 → 10-05)', () => {
@@ -46,4 +46,29 @@ test('그래프: 점이 없으면 안내 문구, 있으면 SVG', () => {
   const svg = lineChart({ series: [{ points: [{ x: '2026-10-01', y: 90 }, { x: '2026-10-08', y: 89.5 }], color: '#185FA5' }], unit: 'kg' });
   assert.match(svg, /^<svg/);
   assert.match(svg, /<path d="M/);
+});
+
+test('이번 주 유산소: 자전거 탄 시간 + 걷기, 지난주는 빼고', () => {
+  const sessions = [
+    { date: '2026-10-13', type: 'bike', totalSeconds: 1800, bike: { rideMin: 21 } },
+    { date: '2026-10-19', type: 'bike', totalSeconds: 1800, bike: { rideMin: 24 } },
+    { date: '2026-10-20', type: 'strength', totalSeconds: 2000 },
+    { date: '2026-10-21', type: 'bike', totalSeconds: 1500 }, // 예전 기록은 전체 시간
+  ];
+  const walks = [{ date: '2026-10-18', min: 30 }, { date: '2026-10-20', min: 20 }, { date: '2026-10-21', min: 10 }];
+  assert.deepEqual(aerobicWeek(sessions, walks, '2026-10-21'), { bike: 49, walk: 30, total: 79 });
+});
+
+test('걷기 기록 더하기·되돌리기', () => {
+  let w = addWalk([], '2026-10-21', 20);
+  w = addWalk(w, '2026-10-21', 10);
+  assert.equal(w.length, 2);
+  w = undoWalk(w, '2026-10-21');
+  assert.deepEqual(w, [{ date: '2026-10-21', min: 20 }]);
+  assert.deepEqual(undoWalk(w, '2026-10-22'), w); // 오늘 기록이 없으면 그대로
+});
+
+test('주별 유산소 합계', () => {
+  const s = [{ date: '2026-10-13', type: 'bike', bike: { rideMin: 21 } }, { date: '2026-10-20', type: 'bike', bike: { rideMin: 24 } }];
+  assert.deepEqual(aerobicSeries(s, [{ date: '2026-10-21', min: 30 }]), [{ x: '2026-10-12', y: 21 }, { x: '2026-10-19', y: 54 }]);
 });

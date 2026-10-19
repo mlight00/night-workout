@@ -38,6 +38,36 @@ export function bikeSeries(sessions) {
 
 export function levelSeries(sessions, id) {
   return sessions
-    .filter((s) => s.type === 'strength' && s.results && s.results[id])
+    .filter((s) => s.results && s.results[id])
     .map((s) => ({ x: s.date, y: s.results[id].lv }));
+}
+
+// 자전거 탄 시간(분): 새 기록은 실제로 탄 시간, 예전 기록은 전체 시간
+const rideMin = (s) => (s.bike && s.bike.rideMin != null ? s.bike.rideMin : Math.round((s.totalSeconds || 0) / 60));
+
+// 이번 주(월~오늘) 유산소: 자전거 + 걷기
+export function aerobicWeek(sessions, walks, today) {
+  const ws = weekStart(today), inWeek = (d) => d >= ws && d <= today;
+  const bike = sessions.filter((s) => s.type === 'bike' && inWeek(s.date)).reduce((t, s) => t + rideMin(s), 0);
+  const walk = (walks || []).filter((w) => inWeek(w.date)).reduce((t, w) => t + w.min, 0);
+  return { bike, walk, total: bike + walk };
+}
+
+export function addWalk(walks, date, min) {
+  return [...(walks || []), { date, min }];
+}
+
+// 오늘 마지막 걷기 기록 지우기 (잘못 눌렀을 때)
+export function undoWalk(walks, date) {
+  const i = (walks || []).map((w) => w.date).lastIndexOf(date);
+  return i < 0 ? walks : walks.filter((_, j) => j !== i);
+}
+
+// 주별 유산소 합계 (그래프용)
+export function aerobicSeries(sessions, walks) {
+  const byWeek = new Map();
+  const add = (d, m) => { const w = weekStart(d); byWeek.set(w, (byWeek.get(w) || 0) + m); };
+  for (const s of sessions) if (s.type === 'bike') add(s.date, rideMin(s));
+  for (const w of walks || []) add(w.date, w.min);
+  return [...byWeek].sort((a, b) => a[0].localeCompare(b[0])).map(([x, y]) => ({ x, y }));
 }

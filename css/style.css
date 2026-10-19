@@ -61,6 +61,12 @@ button.pass { display: block; width: 100%; background: transparent; border: 1px 
 .nav { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
 .nav button { padding: 1rem; font-size: 1rem; }
 .weigh { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+.aero h3 { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+.abar { display: flex; height: 10px; background: var(--line); border-radius: 999px; overflow: hidden; margin: 0.5rem 0; }
+.abar i { display: block; height: 100%; } .abar i.b { background: #1D9E75; } .abar i.w { background: #378ADD; }
+.walk { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; margin: 0.5rem 0 0.3rem; }
+.walk span { color: var(--sub); font-size: 0.95rem; margin-right: 0.2rem; }
+.walk button { padding: 0.45rem 0.75rem; border-radius: 999px; }
 
 /* 컨디션·그만두기 */
 .cond { display: grid; gap: 0.7rem; }

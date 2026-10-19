@@ -9,7 +9,7 @@ import { createStore, exportJson, importJson } from './store.js';
 import { nextType, nextRoutine, ymd, isWeekend } from './schedule.js';
 import { applyResults, applyCondition, levelUp, levelDown } from './levels.js';
 import { makeRecord, gradeStrength, gradeBike } from './session.js';
-import { addWeight } from './stats.js';
+import { addWeight, addWalk, undoWalk } from './stats.js';
 import { formatClock, withRo } from './format.js';
 import { createWakeLock } from './wakelock.js';
 import { STRENGTH, BIKE_ROUTINES } from './program.js';
@@ -57,6 +57,8 @@ function refreshHome() {
     data, today: today(), type: todayType(), routine: todayRoutine(), legacy: store.legacyCount(),
     onWeight: (kg) => { data.weights = addWeight(data.weights, today(), kg); save(); refreshHome(); },
     onRoutine: (r) => { routineOverride = r; refreshHome(); },
+    onWalk: (min) => { data.walks = addWalk(data.walks, today(), min); save(); refreshHome(); },
+    onWalkUndo: () => { data.walks = undoWalk(data.walks, today()); save(); refreshHome(); },
   });
 }
 onShow('home', refreshHome);
@@ -118,7 +120,7 @@ function startSession(type, mode, condition) {
   data.state = applyCondition(data.state, condition);
   save();
   const routine = type === 'bike' ? (mode === 'light' ? 'steady' : todayRoutine()) : null;
-  const steps = type === 'strength' ? strengthDay(data.state.levels, mode) : type === 'bike' ? bikeDay(data.state.levels.bike.lv, mode, routine) : stretchDay();
+  const steps = type === 'strength' ? strengthDay(data.state.levels, mode) : type === 'bike' ? bikeDay(data.state.levels.bike.lv, mode, routine, data.state.levels.wall.lv) : stretchDay();
   S = { type, mode, condition, routine, steps, total: totalSeconds(steps), timer: createTimer(steps), ends: [], startedAt: new Date().toISOString(), beeped: new Set(), last: clock(), active: true, step: null, paused: 0 };
   typeOverride = null;
   routineOverride = null;
@@ -301,14 +303,13 @@ function showEnd() {
     onSave: (evals, bike) => {
       const results = {};
       const ok = (g) => g === 'great' || g === 'good';
-      if (endRec.type === 'strength') {
-        for (const [id, r] of Object.entries(endRec.results)) {
-          const ev = evals[id] || {};
-          const { grade, why } = gradeStrength(r, ev);
-          Object.assign(r, { done: ev.done || null, form: ev.form || null, effort: ev.effort || null, grade, why, success: ok(grade) });
-          if (grade) results[id] = grade;
-        }
-      } else {
+      for (const [id, r] of Object.entries(endRec.results || {})) {
+        const ev = evals[id] || {};
+        const { grade, why } = gradeStrength(r, ev);
+        Object.assign(r, { done: ev.done || null, form: ev.form || null, effort: ev.effort || null, grade, why, success: ok(grade) });
+        if (grade) results[id] = grade;
+      }
+      if (endRec.type === 'bike') {
         const b = endRec.bike;
         Object.assign(b, bike);
         const { grade, why } = gradeBike(b, bike, endRec.completed);

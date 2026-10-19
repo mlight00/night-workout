@@ -6,10 +6,10 @@ import { levelOf } from '../js/program.js';
 
 const L = initLevels().levels;
 
-test('근력 날: 웜업 3개 → 준비 → 5종목×3세트(사이 휴식) → 쿨다운 3개', () => {
+test('근력 날: 웜업 3개 → 준비 → 6종목×3세트(사이 휴식) → 쿨다운 3개', () => {
   const s = strengthDay(L);
   const works = s.filter((x) => x.kind === 'work');
-  assert.equal(works.length, 15);
+  assert.equal(works.length, 18);
   assert.deepEqual(s.slice(0, 3).map((x) => x.kind), ['warmup', 'warmup', 'warmup']);
   assert.equal(s[3].kind, 'rest');
   assert.equal(s[3].prep, true);
@@ -63,14 +63,14 @@ test('레벨이 바뀌면 동작이 바뀐다', () => {
 
 test('가볍게 모드: 2세트, 휴식 +15초', () => {
   const s = strengthDay(L, 'light');
-  assert.equal(s.filter((x) => x.kind === 'work').length, 10);
+  assert.equal(s.filter((x) => x.kind === 'work').length, 12);
   const rests = s.filter((x) => x.kind === 'rest' && !x.prep).map((x) => x.seconds);
   assert.ok(rests.includes(75) && rests.includes(105));
 });
 
-test('근력 날 길이는 30분 안팎 (시작 레벨, 횟수 종목 제한시간 기준 최대)', () => {
+test('근력 날 길이는 35분 안팎 (시작 레벨, 횟수 종목 제한시간 기준 최대)', () => {
   const t = totalSeconds(strengthDay(L));
-  assert.ok(t > 25 * 60 && t < 34 * 60, `${t}`);
+  assert.ok(t > 28 * 60 && t < 38 * 60, `${t}`);
 });
 
 test('자전거 날: 웜업 편하게 2분 → 올리기 3분 → 루틴 → 쿨다운 2분 → 스트레칭 2개', () => {
@@ -131,4 +131,22 @@ test('루틴 요약 문구', () => {
 test('스트레칭만 하는 날은 쿨다운 단계만', () => {
   const s = stretchDay();
   assert.ok(s.length >= 3 && s.every((x) => x.kind === 'cooldown'));
+});
+
+test('자전거 날: 쿨다운 뒤 벽에 기대 버티기 3세트(준비·휴식 포함) → 스트레칭', () => {
+  const s = bikeDay(1, 'normal', 'interval', 1);
+  const cool = s.findIndex((x) => x.zone === 'cool');
+  assert.equal(s[cool + 1].prep, true);
+  const w = s.filter((x) => x.exId === 'wall');
+  assert.deepEqual(w.map((x) => [x.type, x.seconds, x.setNo]), [['hold', 30, 1], ['hold', 30, 2], ['hold', 30, 3]]);
+  assert.equal(s.at(-1).kind, 'cooldown');
+  assert.equal(bikeDay(1, 'light', 'interval', 6).filter((x) => x.exId === 'wall').length, 2); // 가볍게는 2세트
+  assert.equal(bikeDay(1).filter((x) => x.exId === 'wall').length, 0); // 레벨을 안 주면 없음
+});
+
+test('자전거 날 + 벽에 기대 버티기는 가장 긴 날도 40분 이내', () => {
+  for (const r of ['interval', 'pyramid', 'speed', 'steady']) for (let lv = 1; lv <= 7; lv++) {
+    const t = totalSeconds(bikeDay(lv, 'normal', r, 6));
+    assert.ok(t <= 40 * 60, `${r} Lv${lv} ${t}`);
+  }
 });

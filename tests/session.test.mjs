@@ -92,6 +92,19 @@ test('기록 만들기', () => {
   });
   assert.equal(r.totalSeconds, 1200);
   assert.equal(r.type, 'bike');
-  assert.deepEqual(r.bike, { lv: 1, routine: 'interval', mainDone: false, avgHr: null, resistance: null });
+  assert.deepEqual(r.bike, { lv: 1, routine: 'interval', mainDone: false, rideMin: 0, avgHr: null, resistance: null });
+  assert.equal(r.results, undefined); // 버티기 단계를 안 했으면 결과 없음
   assert.equal(r.judged, false);
+});
+
+test('자전거 날: 탄 시간(분)과 벽에 기대 버티기 결과도 기록', () => {
+  const b = bikeDay(1, 'normal', 'interval', 1);
+  const ends = b.map((s) => end(s, s.seconds));
+  const r = makeRecord({
+    type: 'bike', mode: 'normal', condition: 'good', startedAt: '2026-10-21T13:00:00.000Z', endedAt: '2026-10-21T13:30:00.000Z',
+    completed: true, ends, steps: b, bikeLv: 1, routine: 'interval',
+  });
+  assert.equal(r.bike.rideMin, (120 + 180 + 720 + 120) / 60);
+  assert.deepEqual(Object.keys(r.results), ['wall']);
+  assert.deepEqual(r.results.wall.sets, [30, 30, 30]);
 });

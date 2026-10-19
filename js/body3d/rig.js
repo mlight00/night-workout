@@ -7,9 +7,9 @@
 //   el 어깨 올림(m, +는 으쓱) · pr 어깨 내밈(m)
 //   sf 어깨 굽힘(앞/위) · sa 어깨 벌림 · ef 팔꿈치 굽힘(음수 = 뒤로 꺾임) · wf 손목
 //   hf 고관절 굽힘 · ha 고관절 벌림 · hr 고관절 바깥 회전 · kv 무릎 안쪽 모임 · kf 무릎 굽힘 · pf 발목(+는 발끝 내림) · flat 발바닥 수평
-//   hw / ak : 손목·발목 목표 위치 [x,y,z] (있으면 IK로 맞춤) · oz 몸 전체를 앞으로(m, 발 고정 동작용)
+//   hw / ak : 손목·발목 목표 위치 [x,y,z] (있으면 IK로 맞춤) · oz·oy 몸 전체를 앞·위로(m, 발 고정 동작용)
 
-export const DEF = { grip: 0.85, wy: 0, rx: 0, ry: 0, sp: 0, nk: 0, el: 0, pr: 0, sf: 2, sa: 6, ef: 8, wf: 0, hf: 0, ha: 4, hr: 6, kv: 0, kf: 2, pf: 0, flat: 0, crank: 0, oz: 0 };
+export const DEF = { grip: 0.85, wy: 0, rx: 0, ry: 0, sp: 0, nk: 0, el: 0, pr: 0, sf: 2, sa: 6, ef: 8, wf: 0, hf: 0, ha: 4, hr: 6, kv: 0, kf: 2, pf: 0, flat: 0, crank: 0, oz: 0, oy: 0 };
 const R = Math.PI / 180;
 
 export function interp(fr, t, lin) {
@@ -149,6 +149,7 @@ export function createRig(THREE, opts = {}) {
     put(BX(0.44, 0.3, 0.03, 'chair'), EQ.chairBack, 0, 0.33, -0.2);
     [1, -1].forEach((a) => put(CY(0.017, 0.017, 0.36, 'chair'), EQ.chairBack, a * 0.19, 0.17, -0.2));
     EQ.mat = put(BX(0.64, 0.012, 1.9, 'mat'), scene, 0, 0.006, -0.12);
+    EQ.wall = put(BX(1.6, 2.1, 0.06, 'stepm'), scene, 0, 1.05, -0.33);
     // 실내 자전거 (크랭크 중심 0,.30,.02 · 사람은 +Z를 봄)
     const B = (EQ.bike = G(scene));
     const cz = 0.02, cy = 0.3;
@@ -174,7 +175,7 @@ export function createRig(THREE, opts = {}) {
     });
     EQ.bikeC = new V3(0, cy, cz);
   }
-  const EQK = ['tower', 'chair', 'mat', 'stepF', 'stepD', 'bike'];
+  const EQK = ['tower', 'chair', 'mat', 'stepF', 'stepD', 'bike', 'wall'];
 
   // ---- 자세 적용 ----
   const side = (p, k, s) => p[k + (s > 0 ? 'L' : 'R')] ?? p[k];
@@ -287,7 +288,7 @@ export function createRig(THREE, opts = {}) {
     const m = def[mode];
     apply(p);
     place(m.at || def.at, m.anc || def.anc);
-    if (p.oz) { root.position.z += p.oz; root.updateMatrixWorld(true); }
+    if (p.oz || p.oy) { root.position.z += p.oz; root.position.y += p.oy; root.updateMatrixWorld(true); }
     if (def.bike) bikeFeet(p);
     if (rt.plant) plantFeet(p);
     [1, -1].forEach((s) => {
@@ -317,6 +318,7 @@ export function createRig(THREE, opts = {}) {
   // 자세가 바뀔 때 한 번: 기구 보이기·위치 맞추기
   function setup(def, mode) {
     for (const k of EQK) EQ[k].visible = (def.eq || []).includes(k);
+    for (const s of [1, -1]) EQ.pedal[s].visible = EQ.bike.visible; // 페달은 자전거 밖에 따로 있어서 같이 숨긴다
     const frame0 = (fr) => interp(fr, 0)[0];
     rt.plant = null;
     if (def.plant) {

@@ -2,11 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { POSES } from '../js/body3d/poses.js';
 import { interp, DEF } from '../js/body3d/rig.js';
-import { STRENGTH, WARMUP_STRENGTH, COOLDOWN_STRENGTH, COOLDOWN_BIKE } from '../js/program.js';
+import { STRENGTH, WALL, WARMUP_STRENGTH, COOLDOWN_STRENGTH, COOLDOWN_BIKE } from '../js/program.js';
 
 test('프로그램에 나오는 모든 동작은 3D 자세가 있다', () => {
   const ids = [
-    ...STRENGTH.flatMap((e) => e.levels.map((l) => l.pose)),
+    ...[...STRENGTH, WALL].flatMap((e) => e.levels.map((l) => l.pose)),
     ...[...WARMUP_STRENGTH, ...COOLDOWN_STRENGTH, ...COOLDOWN_BIKE].map((x) => x.pose).filter(Boolean),
     'bike',
   ];

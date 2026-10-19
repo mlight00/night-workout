@@ -1,15 +1,15 @@
 // 기록 저장 — 폰 안(localStorage)에만. storage 주입식이라 테스트 가능.
-// 문서 하나에 전부: { v:2, ladder, sessions, state:{levels,pending}, weights }
+// 문서 하나에 전부: { v:2, ladder, sessions, state:{levels,pending}, weights, walks:[{date, min}] }
 
 import { initLevels } from './levels.js';
-import { STRENGTH, BIKE } from './program.js';
+import { STRENGTH, BIKE, WALL } from './program.js';
 
 export const KEY = 'nightWorkout.v2';
 export const V1_KEY = 'nightWorkout.v1';
 export const LADDER = 3; // 레벨 사다리 판 — 사다리를 바꾸면 올리고 migrate()에 옮기는 법을 적는다
 
 export function emptyData() {
-  return { v: 2, ladder: LADDER, sessions: [], state: initLevels(), weights: [] };
+  return { v: 2, ladder: LADDER, sessions: [], state: initLevels(), weights: [], walks: [] };
 }
 
 // 사다리 2판 (2026-10-14): 팔굽혀펴기에서 경사 팔굽혀펴기를 빼고 세트별 횟수(15·10·8회~)로.
@@ -35,7 +35,7 @@ function migrate(d) {
 export function validate(d) {
   if (!d || d.v !== 2 || !Array.isArray(d.sessions) || !Array.isArray(d.weights)) return false;
   if (!d.state || !d.state.levels || !Array.isArray(d.state.pending)) return false;
-  return [...STRENGTH, BIKE].every((e) => {
+  return [...STRENGTH, BIKE, WALL].every((e) => {
     const l = d.state.levels[e.id];
     return l && Number.isInteger(l.lv) && l.lv >= 1 && l.lv <= e.levels.length;
   });
@@ -45,6 +45,7 @@ export function validate(d) {
 function repair(d) {
   if (!d || !d.state || !d.state.levels) return d;
   migrate(d);
+  if (!Array.isArray(d.walks)) d.walks = [];
   const base = initLevels();
   d.state.levels = { ...base.levels, ...d.state.levels };
   return d;

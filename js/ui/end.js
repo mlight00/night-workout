@@ -1,13 +1,13 @@
 // 완료 화면 — 1) 종목별 평가(실제 횟수·초, 자세, 힘든 정도) → 2) 저장 후 오늘 평가 + 레벨업/레벨다운
 
 import { $, esc } from './dom.js';
-import { STRENGTH, BIKE_ROUTINES, levelOf, targetText, maxLevel } from '../program.js';
+import { LEVEL_EX, BIKE_ROUTINES, levelOf, targetText, maxLevel } from '../program.js';
 import { canUp, suggestDown, canDown, UP_AFTER } from '../levels.js';
 import { defaultDone, lastResult, GRADE_LABEL } from '../session.js';
 import { secText } from '../coach.js';
 import { withRo } from '../format.js';
 
-const ORDER = STRENGTH.map((e) => e.id);
+const ORDER = LEVEL_EX.map((e) => e.id); // 근력 종목 + 벽에 기대 버티기
 const FORM = [['good', '바르게'], ['some', '가끔 흐트러짐'], ['bad', '많이 흐트러짐']];
 const EFFORT = [['easy', '여유'], ['ok', '적당'], ['hard', '한계']];
 // 근력은 "몇 개(몇 초) 더 할 수 있었나" — ACSM 2026: 2~3개 여유를 남기는 게 실패까지 가는 것과 효과가 같다
@@ -44,13 +44,26 @@ function renderSimple({ onHome }, msg) {
 const stepper = (val, max) => `<span class="stepper" data-max="${max}"><button type="button" data-d="-1" aria-label="줄이기">−</button><b>${val}</b><button type="button" data-d="1" aria-label="늘리기">+</button></span>`;
 const choice = (k, label, opts, cur) => `<div class="q"><span>${label}</span><span class="seg" data-k="${k}">${opts.map(([v, t]) => `<button type="button" data-v="${v}" aria-pressed="${v === cur}">${t}</button>`).join('')}</span></div>`;
 
+function bikeCard(b) {
+  const steady = b.routine === 'steady';
+  return `<div class="card res" data-ex="bike"><h3><span>자전거 · ${routineName(b)}<span class="lv">Lv${b.lv}</span></span>${b.mainDone ? '<span class="tag ok">루틴 완주</span>' : '<span class="tag mid">루틴 미완료</span>'}</h3>
+      <p class="sub" style="margin-bottom:.5rem">워치에서 이번 운동의 평균 심박을 확인해 넣어주세요. (그래프용, 비워도 됩니다)</p>
+      <div class="fields"><label>평균 심박 <span><input id="hrIn" type="number" inputmode="numeric" min="50" max="200" placeholder="112"> 회</span></label>
+      <label>기본 저항 단계 <span><input id="resIn" type="number" inputmode="numeric" min="1" max="40" placeholder="4"> 단계</span></label></div>
+      ${b.mainDone ? `<label class="check"><input type="checkbox" id="followChk" checked> ${steady ? '목표 심박 구간을 대체로 유지했다' : '안내대로 따라 했다 (세게·편하게, 저항 올리고 내리기)'}</label>
+      <label class="check"><input type="checkbox" id="overChk"> 심박이 140을 넘은 적이 있다</label>
+      ${choice('effort', '힘든 정도', EFFORT, 'ok')}` : ''}</div>`;
+}
+
 // ---- 1) 평가 입력 — 기본값이 "계획대로 했다"라서 그대로면 바로 저장 -------------------
 function renderChecks(ctx) {
   const { rec } = ctx;
-  let html = `<p class="sub hint">실제와 다른 것만 고쳐 주세요. 계획대로 했다면 그대로 저장하면 됩니다.${rec.type === 'strength' ? '<br>마지막 세트에 <b>2~3개 여유</b>가 남았으면 딱 좋은 강도입니다 (끝까지 짜낼 필요 없음).' : ''}</p>`;
-  if (rec.type === 'strength') {
+  const results = rec.results || {};
+  let html = `<p class="sub hint">실제와 다른 것만 고쳐 주세요. 계획대로 했다면 그대로 저장하면 됩니다.${Object.keys(results).length ? '<br>마지막 세트에 <b>2~3개 여유</b>가 남았으면 딱 좋은 강도입니다 (끝까지 짜낼 필요 없음).' : ''}</p>`;
+  if (rec.type === 'bike') html += bikeCard(rec.bike);
+  {
     for (const id of ORDER) {
-      const r = rec.results[id];
+      const r = results[id];
       if (!r) continue;
       const partial = r.setsDone < r.totalSets;
       html += `<div class="card res" data-ex="${id}"><h3><span>${esc(r.name)}<span class="lv">Lv${r.lv}</span></span>${partial ? '<span class="tag mid">중단</span>' : ''}</h3>`;
@@ -63,16 +76,6 @@ function renderChecks(ctx) {
         <div class="sets-in">${defaultDone(r).map((d, i) => `<label>${i + 1}세트 ${stepper(d, r.type === 'hold' ? r.target : t[i] * 2 + 5)}</label>`).join('')}</div>
         ${choice('form', '자세', FORM, 'good')}${r.type === 'hold' ? choice('effort', '마지막 세트, 몇 초 더?', SIR, 'ok') : choice('effort', '마지막 세트, 몇 개 더?', RIR, 'ok')}</div>`;
     }
-  } else {
-    const b = rec.bike;
-    const steady = b.routine === 'steady';
-    html += `<div class="card res" data-ex="bike"><h3><span>자전거 · ${routineName(b)}<span class="lv">Lv${b.lv}</span></span>${b.mainDone ? '<span class="tag ok">루틴 완주</span>' : '<span class="tag mid">루틴 미완료</span>'}</h3>
-      <p class="sub" style="margin-bottom:.5rem">워치에서 이번 운동의 평균 심박을 확인해 넣어주세요. (그래프용, 비워도 됩니다)</p>
-      <div class="fields"><label>평균 심박 <span><input id="hrIn" type="number" inputmode="numeric" min="50" max="200" placeholder="112"> 회</span></label>
-      <label>기본 저항 단계 <span><input id="resIn" type="number" inputmode="numeric" min="1" max="40" placeholder="4"> 단계</span></label></div>
-      ${b.mainDone ? `<label class="check"><input type="checkbox" id="followChk" checked> ${steady ? '목표 심박 구간을 대체로 유지했다' : '안내대로 따라 했다 (세게·편하게, 저항 올리고 내리기)'}</label>
-      <label class="check"><input type="checkbox" id="overChk"> 심박이 140을 넘은 적이 있다</label>
-      ${choice('effort', '힘든 정도', EFFORT, 'ok')}` : ''}</div>`;
   }
   html += `<button id="endSave" class="btn-start">저장하고 오늘 평가 보기</button>`;
   $('endBody').innerHTML = html;
@@ -131,9 +134,11 @@ function levelBody(state, id, r) {
 
 function renderJudged(ctx) {
   const { rec, state, sessions = [], onUp, onDown, onPreview, onHome } = ctx;
-  const items = rec.type === 'strength'
-    ? ORDER.filter((id) => rec.results[id]).map((id) => ({ id, r: rec.results[id] }))
-    : [{ id: 'bike', r: { ...rec.bike, name: `자전거 · ${routineName(rec.bike)}` } }];
+  const results = rec.results || {};
+  const items = [
+    ...(rec.bike ? [{ id: 'bike', r: { ...rec.bike, name: `자전거 · ${routineName(rec.bike)}` } }] : []),
+    ...ORDER.filter((id) => results[id]).map((id) => ({ id, r: results[id] })),
+  ];
 
   const graded = items.filter((x) => x.r.grade);
   const count = (g) => graded.filter((x) => x.r.grade === g).length;

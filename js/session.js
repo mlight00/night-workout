@@ -89,7 +89,10 @@ export function makeRecord({ type, mode, condition, startedAt, endedAt, complete
     totalSeconds: Math.round((new Date(endedAt) - start) / 1000),
     completed, quitReason: quitReason || null, judged: false,
   };
-  if (type === 'strength') rec.results = strengthResults(ends);
-  if (type === 'bike') rec.bike = { lv: bikeLv, routine: routine || 'steady', mainDone: bikeMainDone(ends, steps), avgHr: null, resistance: null };
+  if (type === 'strength' || ends.some((e) => e.step.kind === 'work')) rec.results = strengthResults(ends);
+  if (type === 'bike') {
+    const rideMin = Math.round(ends.filter((e) => e.step.kind === 'ride').reduce((t, e) => t + e.actualSeconds, 0) / 60);
+    rec.bike = { lv: bikeLv, routine: routine || 'steady', mainDone: bikeMainDone(ends, steps), rideMin, avgHr: null, resistance: null };
+  }
   return rec;
 }

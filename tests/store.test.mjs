@@ -12,6 +12,9 @@ test('처음엔 빈 문서 — 시작 레벨이 들어 있다', () => {
   assert.equal(d.v, 2);
   assert.equal(d.state.levels.push.lv, 3);
   assert.equal(d.ladder, 3);
+  assert.deepEqual(d.walks, []);
+  assert.equal(d.state.levels.wall.lv, 1);
+  assert.equal(d.state.levels.bridge.lv, 1);
   assert.ok(validate(d));
 });
 
@@ -114,4 +117,15 @@ test('사다리 2판 기록: 팔굽혀펴기 레벨 +2 (쉬운 단계 2개가 �
   assert.deepEqual(m.state.levels.push, { lv: 3, ok: 1, ng: 0 });
   assert.equal(m.sessions[0].results.push.lv, 3);
   assert.equal(m.ladder, 3);
+});
+
+test('걷기 기록이 없던 예전 문서도 불러온다 (걷기 []·새 종목 레벨 채움)', () => {
+  const d = emptyData();
+  delete d.walks;
+  delete d.state.levels.wall;
+  delete d.state.levels.bridge;
+  const m = importJson(JSON.stringify(d));
+  assert.deepEqual(m.walks, []);
+  assert.equal(m.state.levels.wall.lv, 1);
+  assert.equal(m.state.levels.bridge.lv, 1);
 });

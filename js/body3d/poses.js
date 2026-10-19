@@ -44,6 +44,24 @@ const VKR_NG = { el: 0.085, nk: 12, sf: 0, sa: 7, ef: 90, hf: -12, kf: 12, pf: 2
 
 const BIKE_P = { rx: 22, nk: -12, el: -0.01, sa: 10 };
 
+// 엉덩이 들기: 등을 대고 누워(머리 -z, 발 +z) 어깨는 바닥, 발은 고정, 엉덩이만 올렸다 내린다
+const BR_FEET = { ak: [0.13, 0.0974, 0.42], hw: [0.25, 0.045, 0.05] };
+const BR_DN = { ...BR_FEET, rx: -93, nk: 3 };
+const BR_UP = { ...BR_FEET, rx: -120, nk: 30 };
+const BR_NG = { ...BR_FEET, rx: -127, sp: -14, nk: 46 };
+const bridge = (extra) => ({ eq: ['mat'], tg: [0, 0.22, -0.05], dist: 3.3, view: 75, anc: { type: 'mid', a: 'sh1', b: 'sh-1' }, at: [0, 0.1, -0.45], flatHand: true, ...extra });
+const bridgeNg = {
+  dur: 3200, fr: [[0, BR_DN], [0.1, BR_DN], [0.4, BR_NG], [0.55, BR_NG], [0.95, BR_DN], [1, BR_DN]],
+  c: [['lback', '허리를 꺾어 엉덩이를 너무 높이', '허리 아래쪽에 부담 — 엉덩이 힘으로만', null, HP], ['hip', '반동으로 튕기듯 올리기', '엉덩이 근육이 일을 안 함', null, HP], BREATH_NG],
+};
+const BR_C = [['hip', '어깨~무릎 일직선까지 엉덩이 들기', '허리를 꺾지 말고 엉덩이 힘으로', null, HP], ['heel1', '뒤꿈치로 바닥 밀기', '발은 엉덩이 너비, 무릎은 발끝 방향', null, AN], ['navel', '배에 살짝 힘', '갈비뼈가 들리지 않게'], ['hip', '위에서 엉덩이 꽉 조이기', '내릴 땐 천천히', null, HP]];
+
+// 벽에 기대 버티기: 등·엉덩이는 벽(z -0.33), 발은 앞으로, 무릎 100° 안팎
+const WALL_FEET = { akL: [0.13, 0.0974, 0.3], akR: [-0.13, 0.0974, 0.3], hw: [0.17, 0.5, 0.12] };
+const WALL_DN = { ...WALL_FEET, sp: -2 };
+const WALL_UP = { ...WALL_FEET, oy: 0.26, hw: [0.2, 0.72, 0.0] };
+const WALL_NG = { akL: [0.13, 0.0974, 0.16], akR: [-0.13, 0.0974, 0.16], hw: [0.17, 0.46, 0.2], rx: 16, sp: 10, nk: 14, oz: 0.07, oy: -0.05 };
+
 // 제자리 걷기: 서 있는 다리는 곧게(엉덩이 높이 고정), 든 다리 반대쪽 팔이 앞으로
 const MARCH_HIP = 0.873;
 const MARCH_MID = { sf: 4, ef: 70, sa: 8 };
@@ -225,6 +243,36 @@ export const POSES = {
       dur: 1400, lin: true, saddleDrop: 0.08, at: [0, 0.92, -0.13],
       fr: [[0, { ...BIKE_P, rx: 30, el: 0.06, nk: 5, crank: 0, hw: [0.21, 1.1, 0.47] }], [1, { ...BIKE_P, rx: 30, el: 0.06, nk: 5, crank: 360, hw: [0.21, 1.1, 0.47] }]],
       c: [['kn', '안장이 낮아 무릎이 많이 굽음', '무릎 앞쪽 부담', ['bend', '무릎 굽힘'], KN], ['acr1', '어깨 으쓱', '목·어깨 뭉침', EAR, SH], ['hip', '안장이 너무 높아도 문제', '골반이 흔들려 허리·발목 부담', null, HP]],
+    },
+  },
+  bridge: bridge({
+    name: '엉덩이 들기',
+    ok: {
+      dur: 3200,
+      fr: [[0, BR_DN, '① 무릎 세우고 발은 엉덩이 너비'], [0.1, BR_DN, '② 뒤꿈치로 밀며 엉덩이 들기'], [0.4, BR_UP, '③ 위에서 엉덩이 꽉 조이기'], [0.55, BR_UP, '④ 천천히 내리기'], [0.95, BR_DN], [1, BR_DN]],
+      c: BR_C,
+    },
+    ng: bridgeNg,
+  }),
+  bridgehold: bridge({
+    name: '멈춤 엉덩이 들기',
+    ok: {
+      dur: 5200,
+      fr: [[0, BR_DN, '① 무릎 세우고 발은 엉덩이 너비'], [0.08, BR_DN, '② 뒤꿈치로 밀며 엉덩이 들기'], [0.28, BR_UP, '③ 위에서 2초 멈춤 — 엉덩이 꽉'], [0.66, BR_UP, '④ 천천히 내리기'], [0.94, BR_DN], [1, BR_DN]],
+      c: BR_C,
+    },
+    ng: bridgeNg,
+  }),
+  wallsit: {
+    name: '벽에 기대 버티기', eq: ['wall'], tg: [0, 0.6, 0.0], dist: 3.6, view: 70, anc: { type: 'root' }, at: [0, 0.46, -0.18], breath: true,
+    ok: {
+      dur: 7000,
+      fr: [[0, WALL_UP, '① 등·엉덩이를 벽에 붙이고 미끄러져 내려가기'], [0.18, WALL_DN, '② 무릎 100° 안팎에서 멈추고 숨은 편하게'], [0.86, WALL_DN, '③ 천천히 미끄러져 올라오기'], [1, WALL_UP]],
+      c: [['lback', '등과 엉덩이를 벽에 붙이기', '허리가 벽에서 뜨지 않게', null, HP], ['kn', '무릎은 발목 바로 위', '힘들면 조금 더 높게 서도 됨', KNEE, KN], ['head', '숨은 편하게 계속', '숨 참으면 혈압이 크게 오름'], ['ball1', '발바닥 전체로 바닥 누르기', '뒤꿈치가 들리지 않게', null, AN]],
+    },
+    ng: {
+      dur: 4000, fr: [[0, WALL_DN], [0.3, WALL_NG], [0.8, WALL_NG], [1, WALL_DN]],
+      c: [['kn', '무릎이 발끝보다 앞', '무릎 앞쪽에 부담 — 발을 더 앞으로', ['kneeToe'], KN], ['lback', '등이 벽에서 떨어짐', '허리에 부담', null, HP], BREATH_NG],
     },
   },
   march: {

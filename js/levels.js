@@ -2,14 +2,14 @@
 // 다음 운동 시작 때 '피곤함/아픈 곳'이면 직전 성공을 무효로 한다.
 // 상태는 바꾸지 않고 새 객체를 돌려준다.
 
-import { STRENGTH, BIKE, maxLevel } from './program.js';
+import { STRENGTH, BIKE, WALL, maxLevel } from './program.js';
 
 export const UP_AFTER = 2;
 export const DOWN_AFTER = 2;
 
 export function initLevels() {
   const levels = {};
-  for (const e of [...STRENGTH, BIKE]) levels[e.id] = { lv: e.start, ok: 0, ng: 0 };
+  for (const e of [...STRENGTH, BIKE, WALL]) levels[e.id] = { lv: e.start, ok: 0, ng: 0 };
   return { levels, pending: [] };
 }
 

@@ -13,6 +13,7 @@ export const PREP_SEC = 20;
 
 // ACSM 2026 (Currier 외, MSSE 2026): 주 2회 이상, 종목당 2~3세트, 실패까지 갈 필요 없음(2~3개 여유),
 // 천천히 내리기(근비대)·힘차게 올리기(순발력·일상 기능), 세션 처음에 한 종목이 가장 많이 는다 → 하체(스쿼트)를 맨 앞에.
+// 하체는 주 10세트 이상이 좋아서 엉덩이 들기(엉덩이·허벅지 뒤)를 더했다.
 export const STRENGTH = [
   {
     id: 'squat', group: '스쿼트', rest: 60, start: 1,
@@ -52,6 +53,17 @@ export const STRENGTH = [
       N('네거티브 친업', 5, 'negchin', { tempo: 10, tip: '발판 딛고 올라가 5초 동안 내려오기' }),
       N('친업', 2, 'chinup', { tempo: 5, tip: '반동 없이, 어깨 먼저 내리고 당기기' }),
       N('친업', 4, 'chinup', { tempo: 5, tip: '반동 없이, 어깨 먼저 내리고 당기기' }),
+    ],
+  },
+  {
+    id: 'bridge', group: '엉덩이 들기', rest: 60, start: 1,
+    levels: [
+      N('엉덩이 들기', 12, 'bridge', { tip: '뒤꿈치로 밀며 엉덩이를 들고, 위에서 꽉 조이기' }),
+      N('엉덩이 들기', 15, 'bridge', { tip: '뒤꿈치로 밀며 엉덩이를 들고, 위에서 꽉 조이기' }),
+      N('엉덩이 들기', 20, 'bridge', { tip: '뒤꿈치로 밀며 엉덩이를 들고, 위에서 꽉 조이기' }),
+      N('멈춤 엉덩이 들기', 10, 'bridgehold', { tempo: 5, tip: '위에서 2초 멈추고 천천히 내리기' }),
+      N('멈춤 엉덩이 들기', 15, 'bridgehold', { tempo: 5, tip: '위에서 2초 멈추고 천천히 내리기' }),
+      N('멈춤 엉덩이 들기', 20, 'bridgehold', { tempo: 5, tip: '위에서 2초 멈추고 천천히 내리기' }),
     ],
   },
   {
@@ -128,9 +140,29 @@ export const COOLDOWN_BIKE = [
 ];
 export const BIKE_COOL_RIDE = 120;
 
+// 벽에 기대 버티기 — 혈압을 낮추는 효과가 연구로 확인된 버티기 운동. 자전거 날 쿨다운 뒤에 3세트.
+// (버티는 동안엔 혈압이 잠깐 오르니 숨은 계속 쉬고, 혈압약 없이 혈압이 높으면 시작 전 의사와 상의)
+export const WALL = {
+  id: 'wall', group: '벽에 기대 버티기', rest: 60, start: 1,
+  levels: [
+    H('벽에 기대 버티기', 30, 'wallsit', { tip: '등·엉덩이는 벽에, 숨은 편하게' }),
+    H('벽에 기대 버티기', 45, 'wallsit', { tip: '등·엉덩이는 벽에, 숨은 편하게' }),
+    H('벽에 기대 버티기', 60, 'wallsit', { tip: '등·엉덩이는 벽에, 숨은 편하게' }),
+    H('벽에 기대 버티기', 75, 'wallsit', { tip: '등·엉덩이는 벽에, 숨은 편하게' }),
+    H('벽에 기대 버티기', 90, 'wallsit', { tip: '등·엉덩이는 벽에, 숨은 편하게' }),
+    H('벽에 기대 버티기', 120, 'wallsit', { tip: '등·엉덩이는 벽에, 숨은 편하게' }),
+  ],
+};
+
+// 유산소 목표: 일주일 150분 (자전거 + 걷기)
+export const AEROBIC_GOAL = 150;
+
 export function exercise(id) {
-  return STRENGTH.find((e) => e.id === id) || (id === 'bike' ? BIKE : null);
+  return STRENGTH.find((e) => e.id === id) || (id === 'bike' ? BIKE : id === 'wall' ? WALL : null);
 }
+
+// 레벨이 있는 근력·버티기 종목 전부 (평가·그래프 순서)
+export const LEVEL_EX = [...STRENGTH, WALL];
 
 export function levelOf(id, lv) {
   const ex = exercise(id);

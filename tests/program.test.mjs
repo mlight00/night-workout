@@ -1,19 +1,32 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { STRENGTH, BIKE, BIKE_ROUTINES, levelOf, maxLevel, limitSec, targetText, planText, repsFor, WARMUP_STRENGTH, COOLDOWN_STRENGTH, COOLDOWN_BIKE } from '../js/program.js';
+import { STRENGTH, BIKE, WALL, AEROBIC_GOAL, LEVEL_EX, BIKE_ROUTINES, levelOf, maxLevel, limitSec, targetText, planText, repsFor, WARMUP_STRENGTH, COOLDOWN_STRENGTH, COOLDOWN_BIKE } from '../js/program.js';
 
-test('근력 5종목, 하체(스쿼트)가 맨 앞 — 세션 처음 종목이 가장 많이 는다(ACSM 2026), 밀기·당기기 번갈아', () => {
-  assert.deepEqual(STRENGTH.map((e) => e.id), ['squat', 'push', 'hang', 'dip', 'leg']);
+test('근력 6종목, 하체(스쿼트)가 맨 앞 — 세션 처음 종목이 가장 많이 는다(ACSM 2026), 엉덩이 들기로 하체 보강', () => {
+  assert.deepEqual(STRENGTH.map((e) => e.id), ['squat', 'push', 'hang', 'bridge', 'dip', 'leg']);
 });
 
-test('레벨 사다리 길이: 스쿼트 6, 팔굽혀펴기 9, 매달리기 10, 딥스 8, 다리 들기 7, 자전거 7', () => {
-  assert.deepEqual([...STRENGTH, BIKE].map((e) => maxLevel(e.id)), [6, 9, 10, 8, 7, 7]);
+test('레벨 사다리 길이: 스쿼트 6, 팔굽혀펴기 9, 매달리기 10, 엉덩이 들기 6, 딥스 8, 다리 들기 7, 자전거 7, 벽에 기대 버티기 6', () => {
+  assert.deepEqual([...STRENGTH, BIKE, WALL].map((e) => maxLevel(e.id)), [6, 9, 10, 6, 8, 7, 7, 6]);
+});
+
+test('하체는 일주일 10세트 이상 (근력 날 주 2~3회 × 스쿼트·엉덩이 들기 3세트 + 자전거 날 벽에 기대 버티기)', () => {
+  const legSets = (strengthDays) => strengthDays * 3 * 2;
+  assert.ok(legSets(2) >= 10 && legSets(3) >= 10);
+});
+
+test('벽에 기대 버티기: 30초에서 2분까지, 버티기 종목, 레벨 목록에 포함', () => {
+  assert.deepEqual(WALL.levels.map((l) => l.sec), [30, 45, 60, 75, 90, 120]);
+  assert.ok(WALL.levels.every((l) => l.type === 'hold' && l.pose === 'wallsit'));
+  assert.deepEqual(LEVEL_EX.map((e) => e.id).slice(-1), ['wall']);
+  assert.equal(levelOf('wall', 1).name, '벽에 기대 버티기');
+  assert.equal(AEROBIC_GOAL, 150);
 });
 
 test('시작 레벨: 의자 스쿼트 10회, 팔굽혀펴기 15·10·8회(아래에 쉬운 단계 2개), 데드행 20초, 딥스 버티기 15초, 무릎 들고 버티기 15초', () => {
   const start = STRENGTH.map((e) => levelOf(e.id, e.start));
   assert.deepEqual(start.map((l) => [l.name, l.type === 'hold' ? l.sec : l.reps]), [
-    ['의자 스쿼트', 10], ['팔굽혀펴기', [15, 10, 8]], ['데드행', 20], ['딥스 버티기', 15], ['무릎 들고 버티기', 15],
+    ['의자 스쿼트', 10], ['팔굽혀펴기', [15, 10, 8]], ['데드행', 20], ['엉덩이 들기', 12], ['딥스 버티기', 15], ['무릎 들고 버티기', 15],
   ]);
   assert.deepEqual([1, 2].map((lv) => levelOf('push', lv).reps), [[10, 8, 6], [12, 10, 8]]);
 });

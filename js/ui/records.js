@@ -2,11 +2,11 @@
 
 import { $, esc } from './dom.js';
 import { lineChart } from '../charts.js';
-import { weightSeries, bikeSeries, levelSeries } from '../stats.js';
-import { STRENGTH, BIKE_ROUTINES, levelOf } from '../program.js';
+import { weightSeries, bikeSeries, levelSeries, aerobicSeries } from '../stats.js';
+import { LEVEL_EX, BIKE_ROUTINES, AEROBIC_GOAL, levelOf } from '../program.js';
 import { secText } from '../coach.js';
 
-const COLORS = { hang: '#378ADD', push: '#D85A30', squat: '#639922', dip: '#7F77DD', leg: '#D4537E' };
+const COLORS = { hang: '#378ADD', push: '#D85A30', squat: '#639922', bridge: '#BA7517', dip: '#7F77DD', leg: '#D4537E', wall: '#1D9E75' };
 const TYPE = { strength: '근력', bike: '자전거', stretch: '스트레칭' };
 const COND = { good: '좋음', ok: '보통', tired: '피곤함', pain: '아픈 곳' };
 const QUIT = { tired: '피곤해서', joint: '관절 통증', dizzy: '어지러움', other: '' };
@@ -19,7 +19,8 @@ export function renderRecords({ data, onWeight, onExport, onImport, legacy, demo
     weightNote = `<p class="sub">처음 기록 대비 <b>${d > 0 ? '+' : ''}${d}kg</b> · 점선은 4주 평균</p>`;
   }
   const bs = bikeSeries(data.sessions);
-  const lvSeries = STRENGTH.map((e) => ({ points: levelSeries(data.sessions, e.id), color: COLORS[e.id], label: e.group }));
+  const lvSeries = LEVEL_EX.map((e) => ({ points: levelSeries(data.sessions, e.id), color: COLORS[e.id], label: e.group }));
+  const aero = aerobicSeries(data.sessions, data.walks);
   const hist = data.sessions.filter((s) => s.type !== 'rest').slice(-12).reverse().map((s) => {
     const what = s.type === 'strength' && s.results
       ? Object.values(s.results).map((r) => `${r.name} Lv${r.lv}`).join(', ')
@@ -37,9 +38,13 @@ export function renderRecords({ data, onWeight, onExport, onImport, legacy, demo
       <p class="sub">같은 저항에서 평균 심박이 내려가면 심장이 좋아지고 있다는 뜻입니다.</p>
       ${lineChart({ series: [{ points: bs, color: '#1D9E75' }] })}
     </div>
+    <div class="card"><h3>주간 유산소 (자전거 + 걷기)</h3>
+      <p class="sub">점선은 목표 ${AEROBIC_GOAL}분. 혈압과 심장에 가장 확실한 효과가 있는 운동량입니다.</p>
+      ${lineChart({ series: [{ points: aero, color: '#1D9E75' }, { points: aero.map((p) => ({ x: p.x, y: AEROBIC_GOAL })), color: '#8fa3b8', dash: true }], yMin: 0 })}
+    </div>
     <div class="card"><h3>근력 레벨</h3>
       ${lineChart({ series: lvSeries, step: true, yMin: 0, yMax: 10 })}
-      <div class="legend">${STRENGTH.map((e) => `<span><i style="background:${COLORS[e.id]}"></i>${esc(e.group)} Lv${data.state.levels[e.id].lv} ${esc(levelOf(e.id, data.state.levels[e.id].lv).name)}</span>`).join('')}</div>
+      <div class="legend">${LEVEL_EX.map((e) => `<span><i style="background:${COLORS[e.id]}"></i>${esc(e.group)} Lv${data.state.levels[e.id].lv} ${esc(levelOf(e.id, data.state.levels[e.id].lv).name)}</span>`).join('')}</div>
     </div>
     <div class="card"><h3>최근 운동</h3>${hist ? `<ul class="hist">${hist}</ul>` : '<p class="empty">아직 기록이 없습니다</p>'}
       ${legacy ? `<p class="muted" style="margin-top:.6rem">이전 앱 기록 ${legacy}회는 따로 보관되어 있습니다.</p>` : ''}</div>
