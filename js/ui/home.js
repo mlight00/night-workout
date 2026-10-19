@@ -5,7 +5,7 @@ import { STRENGTH, BIKE_ROUTINES, BIKE_ROTATION, AEROBIC_GOAL, levelOf, planText
 import { weekStrip, restSuggested, doneToday, passedToday, streakDays, isWeekend, nextRoutine } from '../schedule.js';
 import { needsWeight, aerobicWeek } from '../stats.js';
 import { secText } from '../coach.js';
-import { totalSeconds, bikeDay, routineSummary } from '../timeline.js';
+import { totalSeconds, bikeDay, strengthDay, routineSummary } from '../timeline.js';
 
 const DOW = ['일', '월', '화', '수', '목', '금', '토'];
 const TYPE = { strength: '근', bike: '자', stretch: '스', rest: '쉼' };
@@ -30,7 +30,7 @@ export function renderHome({ data, today, type, routine, legacy, onWeight, onRou
       const l = levelOf(e.id, L[e.id].lv);
       return `<li><span>${esc(l.name)}<span class="lv">Lv${L[e.id].lv}</span></span><span>${planText(l)}</span></li>`;
     }).join('');
-    $('today').innerHTML = `<p class="today-type">오늘은 근력 날</p><ul class="today-list">${rows}</ul><p class="muted" style="margin-top:.6rem">웜업 3분 · 쿨다운 3분 포함 약 30분</p>`;
+    $('today').innerHTML = `<p class="today-type">오늘은 근력 날</p><ul class="today-list">${rows}</ul><p class="muted" style="margin-top:.6rem">웜업 3분 · 쿨다운 3분 포함 최대 약 ${Math.round(totalSeconds(strengthDay(L)) / 60)}분 (횟수 종목을 빨리 끝내면 더 짧아요)</p>`;
   } else {
     const lv = L.bike.lv, turn = nextRoutine(S);
     $('today').innerHTML = `<p class="today-type">오늘은 자전거 날 <span class="lv">Lv${lv}</span></p>
