@@ -21,6 +21,7 @@ export function countdownPlan(remaining) {
 
 export function createBeeper() {
   let ctx = null;
+  const live = new Set(); // 아직 안 끝난(예약된) 소리
   const get = () => {
     if (!ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
@@ -45,6 +46,8 @@ export function createBeeper() {
     o.connect(g).connect(c.destination);
     o.start(t);
     o.stop(t + dur + 0.02);
+    live.add(o);
+    o.onended = () => live.delete(o);
   }
 
   return {
@@ -53,5 +56,10 @@ export function createBeeper() {
       for (const b of countdownPlan(remaining)) b.long ? tone(b.at, 0.6, 1046) : tone(b.at, 0.12, 784);
     },
     ding() { tone(0, 0.18, 660, 0.25); },
+    // 예약된 소리 전부 취소 (잠깐 멈춤)
+    cancel() {
+      for (const o of live) { try { o.stop(); } catch { /* 이미 끝남 */ } }
+      live.clear();
+    },
   };
 }

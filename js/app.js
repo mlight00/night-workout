@@ -125,6 +125,7 @@ function startSession(type, mode, condition) {
   typeOverride = null;
   routineOverride = null;
   wakeLock.acquire();
+  $('wPause').hidden = true;
   show('work', { replace: true });
   handle(S.timer.start(clock()));
   S.tick = setInterval(loop, 100);
@@ -252,12 +253,38 @@ $('wTap').addEventListener('click', () => {
 });
 $('btnSkip').onclick = (e) => { e.stopPropagation(); if (S && S.active) S.timer.skip(); };
 
+// ---- 잠깐 멈춤 / 계속하기 ---------------------------------------------------
+// 멈추면 남은 시간·음성·예약된 비프음이 다 멈추고, 계속하면 멈춘 시간만큼 뒤로 미뤄서 이어 간다.
+function pauseSession() {
+  if (!S || !S.active || S.paused) return;
+  S.paused = clock();
+  stopSpeech();
+  beeper.cancel();
+  const st = S.timer.state();
+  S.beeped.delete(st.index); // 카운트다운 중이었으면 계속할 때 다시 울리게
+  if (workViewer) workViewer.stop();
+  $('wPauseInfo').textContent = `${st.step.kind === 'work' ? st.step.name : st.step.kind === 'rest' ? '휴식' : st.step.name || '운동'} · 남은 ${formatClock(st.remaining)}`;
+  $('wPause').hidden = false;
+}
+function resumeSession() {
+  if (!S || !S.active || !S.paused) return;
+  S.timer.shift(clock() - S.paused);
+  S.last = clock();
+  S.paused = 0;
+  $('wPause').hidden = true;
+  const w = $('screen-work');
+  if (workViewer && (w.classList.contains('show3d') || w.classList.contains('mini3d'))) workViewer.start();
+  if (S.timer.state().remaining >= 7) speak('계속합니다');
+  render();
+}
+$('btnPause').onclick = (e) => { e.stopPropagation(); pauseSession(); };
+$('btnResume').onclick = (e) => { e.stopPropagation(); resumeSession(); };
+$('btnPauseQuit').onclick = (e) => { e.stopPropagation(); $('btnQuit').onclick(); };
+
 // ---- 그만두기 ------------------------------------------------------------
 $('btnQuit').onclick = () => {
   if (!S) return;
-  S.paused = clock();
-  stopSpeech();
-  if (workViewer) workViewer.stop();
+  pauseSession();
   const opt = (k, emo, title, sub) => `<button data-q="${k}"><span class="emo">${emo}</span><span>${title}<small>${sub}</small></span></button>`;
   const ex = S.step && (S.step.exId || (S.step.next && S.step.next.exId));
   $('quitBody').innerHTML = opt('resume', '▶️', '계속하기', '실수로 눌렀어요') + opt('tired', '😮‍💨', '피곤해요', '여기까지 기록합니다')
@@ -267,10 +294,8 @@ $('btnQuit').onclick = () => {
     const b = e.target.closest('button'); if (!b) return;
     const q = b.dataset.q;
     if (q === 'resume') {
-      S.timer.shift(clock() - S.paused);
-      S.last = clock(); S.paused = 0;
       show('work', { replace: true });
-      onStep(S.step, S.timer.state().index);
+      resumeSession();
       return;
     }
     if (q === 'joint' && ex && data.state.levels[ex].lv > 1 && confirm('관절이 아팠던 종목의 레벨을 한 단계 내릴까요?')) { data.state = levelDown(data.state, ex); save(); }

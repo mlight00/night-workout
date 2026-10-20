@@ -37,7 +37,7 @@
   <section id="screen-work" class="screen work">
     <div id="w3d" class="w3d"></div>
     <p id="wLbl" class="wlbl"></p>
-    <div class="wtop"><span id="wPhase"></span><button id="btnQuit" class="ghost">그만두기</button></div>
+    <div class="wtop"><span id="wPhase"></span><span class="wbtns"><button id="btnPause" class="ghost">⏸ 잠깐 멈춤</button><button id="btnQuit" class="ghost">그만두기</button></span></div>
     <div id="wTap" class="wtap">
       <p id="wTitle" class="wtitle"></p>
       <p id="wClock" class="wclock">0</p>
@@ -45,6 +45,13 @@
     </div>
     <p id="wTip" class="wtip"></p>
     <div class="wbot"><div class="bar"><i id="wBar"></i></div><span id="wTotal"></span><button id="btnSkip" class="ghost" hidden>건너뛰기</button></div>
+    <div id="wPause" class="wpause" hidden>
+      <p class="t">잠깐 멈춤</p>
+      <p id="wPauseInfo" class="sub"></p>
+      <button id="btnResume" class="btn-start">▶ 계속하기</button>
+      <p class="muted">남은 시간은 그대로 멈춰 있어요. 물 마시고 숨 고르고 오세요.</p>
+      <button id="btnPauseQuit" class="ghost">그만두기</button>
+    </div>
   </section>
 
   <!-- 그만두기 -->
